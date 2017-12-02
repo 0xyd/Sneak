@@ -1,19 +1,19 @@
-# Sneaker
-Sneaker is a URL transfer tool based on Tor technology.
+# Sneak
+Sneak is a URL transfer tool based on Tor technology.
 
 ## Features
 1. Dynamic ip addresses
 2. Multiprocess
 
 ## Dependencies
-Sneaker hides itself through the tor so make sure the machines you are using are able to work with it.
+Sneak hides itself through the tor so make sure the machines you are using are able to work with it.
 
 To use Tor's powerful techniques, we have to install stem, a python API of Tor.
 ```
     pip install stem
 ```
 
-We want to make Sneaker more efficient and scalable, we choose pycurl rather than requests.
+We want to make Sneak more efficient and scalable, we choose pycurl rather than requests.
 ```
     pip install pycurl
 ```
