@@ -1,19 +1,20 @@
-# Stealther
-Stealther is a ninja traveling between dark and light. 
-It hides itself in the tor network and make others feel creepy...
+# OnionCurl
+OnionCurl is a URL transfer tool based on Tor technology.
 
-## Function
-Stealther is currently made as a crawler hiding its identity.
+## Features
+1. Dynamic ip addresses
+2. Multiprocess
+3. Fast 
 
 ## Dependencies
-Stealther hides itself through the tor so make sure the machines you are using are able to work with it.
+OnionCurl hides itself through the tor so make sure the machines you are using are able to work with it.
 
 To use Tor's powerful techniques, we have to install stem, a python API of Tor.
 ```
     pip install stem
 ```
 
-We want to make Stealther more efficient and scalable, we choose pycurl rather than requests.
+We want to make OnionCurl more efficient and scalable, we choose pycurl rather than requests.
 ```
     pip install pycurl
 ```
