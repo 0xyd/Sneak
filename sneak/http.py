@@ -159,9 +159,12 @@ class Request():
             self.session.setopt(pycurl.SSL_OPTIONS, pycurl.SSLVERSION_TLSv1_2) 
         elif self.ssl_version == 'tls_1_1':
             self.session.setopt(pycurl.SSL_OPTIONS, pycurl.SSLVERSION_TLSv1_1)
-        elif self.ssl_version == '':
-            
+        elif self.ssl_version == 'ssl_2':
+            self.session.setopt(pycurl.SSL_OPTIONS, pycurl.SSLVERSION_SSLv2)
+        elif self.ssl_version == 'ssl_3':
+            self.session.setopt(pycurl.SSL_OPTIONS, pycurl.SSLVERSION_SSLv3)
 
+        # 20171202 Y.D.: The method to verify CA.
         if self.ssl_verifypeer:
             self.session.setopt(pycurl.SSL_VERIFYPEER, 1)
         if self.ssl_verifyhost:
@@ -181,6 +184,7 @@ class Request():
                 'Accept-Language: en-US,en;q=0.5',
                 'Accept-Encoding: gzip, deflate'
             ])
+        
 
     def _parse_header(self, header_line):
         '''_parse_header
