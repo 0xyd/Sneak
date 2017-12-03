@@ -118,11 +118,9 @@ class Proxy():
 		self.auth_controller()
 		# self._init_cUrl()
 		self.controller.signal(Signal.NEWNYM)
-		# print('Renewing the identity...')
 		display_msg('Renewing the identity...',   'Update')
 		time.sleep(self.controller.get_newnym_wait())
 		display_msg('Identity has been renewed.', 'Finished')
-		# print('Renew identity successfully')
 
     # 20171203 Y.D. TODO: Display information about traffic before process be terminated.
 	def terminate(self):
