@@ -1,4 +1,5 @@
 import re
+import sys
 import time
 import random
 import string
@@ -12,18 +13,31 @@ from stem.control import Controller
 HASHCODE_RE = re.compile(r'(?P<code>16:\w{20,})\n?')
 
 def print_bootstrap_lines(line):
-    if "Bootstrapped " in line:
-        print(term.format(line, term.Color.GREEN))
+	if "Bootstrapped " in line:
+		line = term.format(line, term.Color.GREEN)
+		display_msg(line)
+		# print(term.format(line, term.Color.GREEN))
 
 def seed():
-    '''seed
-    :description:
+	'''seed
+	:description:
 		The function is used to generate seed for hash password.
 		It produces a short hash with length 10.
-    '''
-    chars = string.ascii_letters + string.digits
-    seed  = '-'.join(chars[random.randint(0, len(chars)-1)] for i in range(10))
-    return seed
+	'''
+	chars = string.ascii_letters + string.digits
+	seed  = '-'.join(chars[random.randint(0, len(chars)-1)] for i in range(10))
+	return seed
+
+def display_msg(msg_context, msg_type=None):
+	'''display_msg
+	:description:
+		Display the processing message of the process.
+	'''
+	if msg_type:
+		message = '[{0}] {1} \n'.format(msg_type, msg_context)
+	else:
+		message = '{0} \n'.format(msg_context)
+	sys.stdout.write(message)
 
 class Proxy():
 
@@ -104,9 +118,11 @@ class Proxy():
 		self.auth_controller()
 		# self._init_cUrl()
 		self.controller.signal(Signal.NEWNYM)
-		print('Renewing the identity...')
+		# print('Renewing the identity...')
+		display_msg('Renewing the identity...',   'Update')
 		time.sleep(self.controller.get_newnym_wait())
-		print('Renew identity successfully')
+		display_msg('Identity has been renewed.', 'Finished')
+		# print('Renew identity successfully')
 
     # 20171203 Y.D. TODO: Display information about traffic before process be terminated.
 	def terminate(self):
