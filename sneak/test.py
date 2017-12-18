@@ -4,9 +4,11 @@ import unittest
 import pprint
 import getpass
 
+
 import pycurl
 import requests
-from HTTP import Session
+import lxml.html
+from sneak.Http import Session
 
 class TestSession(unittest.TestCase):
 
@@ -32,7 +34,7 @@ class TestSession(unittest.TestCase):
 
     def test_renew_identity(self):
         '''test_renew_identity
-        :description:
+        *description*
             Test if the renew_identity function works well or not.
         '''
         s = Session()
@@ -59,7 +61,7 @@ class TestSession(unittest.TestCase):
     # 2017115 Y.D. TODO: Add more sites as test case. 
     def test_post(self):
         '''
-        :description:
+        *description*
             Here are two test cases:
             1. Post on https://httpbin.org/post
             2. Post a site's url on https://www.proxysite.com/ 
@@ -98,7 +100,7 @@ class TestSession(unittest.TestCase):
 
     def test_post_onion(self):
         '''test_post_onion
-        :description:
+        *description*
             Test if the post_onion works fine or not.
             Test Cases:
             1. Buy 1 unit of 10x1cc BD Insulin Syringes on http://pms5n4czsmblkcjl.onion/
@@ -118,7 +120,7 @@ class TestSession(unittest.TestCase):
 
     def test_head(self):
         '''test_head
-        :description:
+        *description*
             Test Case 1: Send HEAD request to Google.  (Should get 302)
             Test Case 2: Send HEAD request to twitter. (Should get 200)
         '''
@@ -135,7 +137,7 @@ class TestSession(unittest.TestCase):
         
     def test_head_onion(self):
         '''test_head
-        :description:
+        *description*
             Test the HEAD method is workable on hidden services or not.
             Test Case 1: 
             HEAD the [Green World](http://greenroxwc5po3ab.onion/)
@@ -158,6 +160,41 @@ class TestSession(unittest.TestCase):
         self.assertEqual(r1.status, req1.status_code)
         self.assertEqual(r1.body,   req1.text)
         s.proxy.terminate()
+
+    def test_cookie(self):
+        '''
+        *description*
+            Test Case 1: Read cookie through text.
+        '''
+
+        # 20171218 Y.D. The code works! Must integrate them into package
+        import zlib
+        from io import BytesIO
+
+        b = BytesIO()
+        c = pycurl.Curl()
+        c.setopt(c.URL, 'https://pypi.python.org/pypi')
+        c.setopt(pycurl.HEADER, True)
+        c.setopt(pycurl.COOKIE, "_ga=GA1.2.605873786.1513583187; _gid=GA1.2.1851421055.1513583187; login_nonce=uaDBBDeg4Vdt6xYA2EsmLj1zNQR8od; pypi=63e2ebecd1f0aeb6757bd89194232b82")
+        c.setopt(pycurl.FOLLOWLOCATION, 1)
+        # c.setopt(pycurl.COOKIEFILE, 'cookies.txt')
+        c.setopt(pycurl.WRITEDATA, b)
+        c.perform()
+        
+        # s = Session(cookie_path='test_data/cookies.txt', keep_alive=True, redirect=True)
+        # r = s.get('https://pypi.python.org/pypi')
+        # print('check status %d' % r.status)
+
+        t = open('test.html', 'w')
+        t.write(b.getvalue().decode('utf-8', errors='replace'))
+        # t.write(r.body)
+        t.close()
+
+        # html = lxml.html.fromstring(r.body)
+        # doc  = html.get_element_by_id('document-navigation')
+        # links = doc.cssselect('li>a')
+        # print(links.text_content())
+        # s.proxy.terminate()        
 
 def main():
     unittest.main()
