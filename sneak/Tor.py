@@ -20,7 +20,7 @@ def print_bootstrap_lines(line):
 
 def seed():
 	'''seed
-	:description:
+	*description*  
 		The function is used to generate seed for hash password.
 		It produces a short hash with length 10.
 	'''
@@ -30,7 +30,7 @@ def seed():
 
 def display_msg(msg_context, msg_type=None):
 	'''display_msg
-	:description:
+	*description*  
 		Display the processing message of the process.
 	'''
 	if msg_type:
@@ -45,25 +45,25 @@ class Proxy():
 		self, socks_port=9050, control_port=9051, 
 		proxy_host='localhost', exit_country_code='us', tor_path='tor_0'):
 		'''__init__
-		:description:
+		*description*   
 			Initialise a Proxy server.
 
-		:params:
-			socks_port: <int>
+		*params*  
+			socks_port: <int>  
             The port for SOCKS proxy.
 
-            control_port: <int>
+            control_port: <int>  
             Tor uses the control port to communicate.
 
-            proxy_host: <string>
+            proxy_host: <string>  
             The proxy host's ip address. 
             The default is localhost because most of people run Tor on their local machines. 
             Am I right?
 
-            exit_country_code: <string>
+            exit_country_code: <string>  
             Decides where the exit nodes should be.
 
-			tor_path: <string>
+			tor_path: <string>  
             The working directory for the tor process.
 		'''
 		self.process  = None
@@ -77,7 +77,7 @@ class Proxy():
 
 	def run(self):
 		'''run
-		:description:
+		*description*  
 			Run tor as the proxy server.
 		'''
 		# seed = ''.join(self._seed_generator())
@@ -97,15 +97,15 @@ class Proxy():
 
 	def auth_controller(self):
 		'''auth_controller
-		:description:
-        	Initial a controller to 
+		*description*  
+        	Initial a tor proxy controller  
 		'''
 		self.controller = Controller.from_port(port=self.control_port)
 		self.controller.authenticate(password=self.hashcode)
     	
 	def renew_identity(self):
 		'''renew_identity
-		:description:
+		*description*  
 			According to the official document, user's identity is defined by three-hop service.
 			Once renew_identity is performed, process will request tor for a new identity.
 			However, the renew operation does not mean it will always provide new ip addresses.
@@ -125,8 +125,8 @@ class Proxy():
     # 20171203 Y.D. TODO: Display information about traffic before process be terminated.
 	def terminate(self):
 		'''terminate
-		:description:
-			End the tor process.
+		*description*  
+			End the tor process.  
 		'''
 		self.process.kill()
 

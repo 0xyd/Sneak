@@ -8,7 +8,12 @@ import getpass
 import pycurl
 import requests
 import lxml.html
+from lxml import cssselect
+
+from test_data import test_settings
 from sneak.Http import Session
+
+
 
 class TestSession(unittest.TestCase):
 
@@ -163,38 +168,55 @@ class TestSession(unittest.TestCase):
 
     def test_cookie(self):
         '''
-        *description*
-            Test Case 1: Read cookie through text.
+        *description*  
+            We use pypi account as the testing sample.
+
+            Test Case 1:  
+            Read cookie through text.  
+
+            Test Case 2:  
+            Login and store the cookie sucessfully.  
+
         '''
+        def get_logstatus(html):
+            html = lxml.html.fromstring(bytes(html, 'utf8'))
+            html = html.get_element_by_id('document-navigation')
+            links  = html.cssselect('li>a')
+            status = links[1].text_content()
+            return status
 
-        # 20171218 Y.D. The code works! Must integrate them into package
-        import zlib
-        from io import BytesIO
+        # 20171219 Y.D. Test Case 1
+        log_status = ['', '']
+        s = Session(cookie_path='test_data/cookies.txt')
+        r = s.get('https://pypi.python.org/pypi')
+        log_status[0] = get_logstatus(r.body)
+        r = s.get('https://pypi.python.org/pypi?%3Aaction=browse')
+        log_status[1] = get_logstatus(r.body)
+        s.proxy.terminate()
 
-        b = BytesIO()
-        c = pycurl.Curl()
-        c.setopt(c.URL, 'https://pypi.python.org/pypi')
-        c.setopt(pycurl.HEADER, True)
-        c.setopt(pycurl.COOKIE, "_ga=GA1.2.605873786.1513583187; _gid=GA1.2.1851421055.1513583187; login_nonce=uaDBBDeg4Vdt6xYA2EsmLj1zNQR8od; pypi=63e2ebecd1f0aeb6757bd89194232b82")
-        c.setopt(pycurl.FOLLOWLOCATION, 1)
-        # c.setopt(pycurl.COOKIEFILE, 'cookies.txt')
-        c.setopt(pycurl.WRITEDATA, b)
-        c.perform()
+        print('First Login:  %s' % log_status[0])
+        print('Second Login: %s' % log_status[1])
+        self.assertEqual(log_status[0], 'Logout')
+        self.assertEqual(log_status[0], log_status[1])
+
+        # 20171219 Y.D. Test Case 2
+        print('username: %s' % test_settings.PYPI_USERNAME)
+        print('password: %s' % test_settings.PYPI_PASSWORD)
+        login = {
+            'action' : 'login_form',
+            'nonce'  :  test_settings.PYPI_NONCE,
+            'username': test_settings.PYPI_USERNAME,
+            'password': test_settings.PYPI_PASSWORD
+        }
+        s = Session(cookie_path='test_data/cookies.txt', redirect=True)
+        r0 = s.post('https://pypi.python.org/pypi', data=login)
+        r1 = s.get('https://pypi.python.org/pypi')
+        log_status[0] = get_logstatus(r0.body)
+        log_status[1] = get_logstatus(r1.body)
+        s.proxy.terminate()
+        self.assertEqual(log_status[0], 'Logout')
+        self.assertEqual(log_status[0], log_status[1])
         
-        # s = Session(cookie_path='test_data/cookies.txt', keep_alive=True, redirect=True)
-        # r = s.get('https://pypi.python.org/pypi')
-        # print('check status %d' % r.status)
-
-        t = open('test.html', 'w')
-        t.write(b.getvalue().decode('utf-8', errors='replace'))
-        # t.write(r.body)
-        t.close()
-
-        # html = lxml.html.fromstring(r.body)
-        # doc  = html.get_element_by_id('document-navigation')
-        # links = doc.cssselect('li>a')
-        # print(links.text_content())
-        # s.proxy.terminate()        
 
 def main():
     unittest.main()
