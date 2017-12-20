@@ -27,6 +27,7 @@ class TestSession(unittest.TestCase):
 
     def test_get_onion(self):
         s = Session()
+        s.cUrl.setopt(pycurl.VERBOSE, True)
         r = s.get_onion('http://msydqstlz2kzerdg.onion')
         pprint.pprint(r.to_json(), indent=4)
         self.assertEqual(r.status, 200)
@@ -43,6 +44,7 @@ class TestSession(unittest.TestCase):
             Test if the renew_identity function works well or not.
         '''
         s = Session()
+        s.cUrl.setopt(pycurl.VERBOSE, True)
         r = s.get('https://httpbin.org/ip')
         pprint.pprint(r.to_json(), indent=4)
         prev_ip = json.loads(r.body)['origin']
@@ -77,6 +79,7 @@ class TestSession(unittest.TestCase):
         '''
         # TestCase 1.
         s = Session(exit_country_code='tw')
+        s.cUrl.setopt(pycurl.VERBOSE, True)
         r = s.post('https://httpbin.org/post', {1:1, 2:2})
         pprint.pprint(r.to_json(), indent=4)
         s.proxy.terminate()
@@ -112,6 +115,7 @@ class TestSession(unittest.TestCase):
 
         '''
         s = Session()
+        s.cUrl.setopt(pycurl.VERBOSE, True)
         r = s.post_onion(
             'http://pms5n4czsmblkcjl.onion/cart.php', 
             data={
@@ -123,6 +127,7 @@ class TestSession(unittest.TestCase):
         s.proxy.terminate()
         self.assertEqual(r.status, 200)
 
+    # 20171220 Y.D.: [HOTFIX] HEAD not works well...
     def test_head(self):
         '''test_head
         *description*
@@ -130,6 +135,7 @@ class TestSession(unittest.TestCase):
             Test Case 2: Send HEAD request to twitter. (Should get 200)
         '''
         s = Session()
+        s.cUrl.setopt(pycurl.VERBOSE, True)
         r0   = s.head('https://www.google.com')
         req0 = requests.head('https://www.google.com')
         r1   = s.head('https://twitter.com/?lang=en')
@@ -151,6 +157,7 @@ class TestSession(unittest.TestCase):
 
         '''
         s = Session()
+        s.cUrl.setopt(pycurl.VERBOSE, True)
         proxies = {
             'http' : 'socks5h://127.0.0.1:9050',
             'https': 'socks5h://127.0.0.1:9500'
@@ -169,13 +176,16 @@ class TestSession(unittest.TestCase):
     def test_cookie(self):
         '''
         *description*  
-            We use pypi account as the testing sample.
+            We use pypi account as the testing sample
 
             Test Case 1:  
-            Read cookie through text.  
+            Login and store the cookie sucessfully.  
 
             Test Case 2:  
-            Login and store the cookie sucessfully.  
+            Read cookie through text.  
+
+            Test Case 3:
+            Read cookie file directly.
 
         '''
         def get_logstatus(html):
@@ -185,9 +195,29 @@ class TestSession(unittest.TestCase):
             status = links[1].text_content()
             return status
 
-        # 20171219 Y.D. Test Case 1
         log_status = ['', '']
-        s = Session(cookie_path='test_data/cookies.txt')
+
+        # 20171219 Y.D. Test Case 1
+        print('username: %s' % test_settings.PYPI_USERNAME)
+        print('password: %s' % test_settings.PYPI_PASSWORD)
+        login = {
+            'action' : 'login_form',
+            'nonce'  :  test_settings.PYPI_NONCE,
+            'username': test_settings.PYPI_USERNAME,
+            'password': test_settings.PYPI_PASSWORD
+        }
+        s  = Session(cookie_path='test_data/cookies.txt', redirect=True)
+        r0 = s.post('https://pypi.python.org/pypi', data=login)
+        r1 = s.get('https://pypi.python.org/pypi')
+        log_status[0] = get_logstatus(r0.body)
+        log_status[1] = get_logstatus(r1.body)
+        s.proxy.terminate()
+
+        self.assertEqual(log_status[0], 'Logout')
+        self.assertEqual(log_status[0], log_status[1])
+
+        # 20171219 Y.D. Test Case 2
+        s = Session(cookie=test_settings.PYPI_COOKIE , cookie_path='test_data/cookies.txt')
         r = s.get('https://pypi.python.org/pypi')
         log_status[0] = get_logstatus(r.body)
         r = s.get('https://pypi.python.org/pypi?%3Aaction=browse')
@@ -199,24 +229,12 @@ class TestSession(unittest.TestCase):
         self.assertEqual(log_status[0], 'Logout')
         self.assertEqual(log_status[0], log_status[1])
 
-        # 20171219 Y.D. Test Case 2
-        print('username: %s' % test_settings.PYPI_USERNAME)
-        print('password: %s' % test_settings.PYPI_PASSWORD)
-        login = {
-            'action' : 'login_form',
-            'nonce'  :  test_settings.PYPI_NONCE,
-            'username': test_settings.PYPI_USERNAME,
-            'password': test_settings.PYPI_PASSWORD
-        }
-        s = Session(cookie_path='test_data/cookies.txt', redirect=True)
-        r0 = s.post('https://pypi.python.org/pypi', data=login)
-        r1 = s.get('https://pypi.python.org/pypi')
-        log_status[0] = get_logstatus(r0.body)
-        log_status[1] = get_logstatus(r1.body)
+        # 20171220 Y.D. Test Case 3
+        s = Session(cookie_path='test_data/cookies.txt')
+        r = s.get('https://pypi.python.org/pypi')
+        log_status = get_logstatus(r.body)
+        self.assertEqual(log_status, 'Logout')
         s.proxy.terminate()
-        self.assertEqual(log_status[0], 'Logout')
-        self.assertEqual(log_status[0], log_status[1])
-        
 
 def main():
     unittest.main()

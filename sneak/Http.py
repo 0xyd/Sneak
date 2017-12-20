@@ -1,4 +1,5 @@
 import re
+# import gzip
 import zlib
 from io import BytesIO
 
@@ -59,10 +60,15 @@ class Response():
         self.request_size = curl.getinfo(pycurl.REQUEST_SIZE)                   
 
     def decode_body(self, body):
-        decompressed_data = body
-        if 'content-encoding' in self.headers:
-            decompressed_data = zlib.decompress(body, 16+zlib.MAX_WBITS)
-        self.body = decompressed_data.decode(self.charset, errors='replace')
+        body = body[self.header_size:]
+        try:
+            if 'content-encoding' in self.headers:
+                print('start decompressing: %s' % self.headers['content-encoding'])
+                body = zlib.decompress(body, zlib.MAX_WBITS|16)
+        except Exception as e:
+            print(e)
+            pass
+        self.body = body.decode(self.charset, errors='replace')
 
     def to_json(self):
         return self.__dict__
@@ -119,9 +125,9 @@ class Session(TorSessionMixin):
     
     '''
     def __init__(
-        self, socks_port=9050, control_port=9051, proxy_host='localhost', 
-        exit_country_code='us', tor_path='tor_0', cookie_path='', keep_alive=False,
-        ssl_version='tls_1_2' , ssl_verifypeer=True, ssl_verifyhost=True, redirect=False):
+        self, socks_port=9050, control_port=9051, proxy_host='localhost', exit_country_code='us', 
+        tor_path='tor_0', cookie='', cookie_path='', keep_alive=False, redirect=False,
+        ssl_version='tls_1_2' , ssl_verifypeer=True, ssl_verifyhost=True):
         '''__init__
         *description*
             Session is running through Tor which is based on SOCKS proxy.
@@ -164,6 +170,9 @@ class Session(TorSessionMixin):
             tor_path: <string>  
             The working directory for the tor process.
 
+            cookie: <string>
+            The cookie string.
+
             cookie_path: <string>  
             The path of cookie file.
             
@@ -172,7 +181,9 @@ class Session(TorSessionMixin):
 
         '''
         self.cUrl = None
+        self.cookie   = cookie 
         self.redirect = redirect 
+        self.keep_alive  = keep_alive
         self.res_headers = {}
         self.cookie_path = cookie_path
         self.ssl_version = ssl_version
@@ -229,18 +240,10 @@ class Session(TorSessionMixin):
             self.cUrl.setopt(pycurl.FOLLOWLOCATION, 1)
         
         # Enable cookies
-        cookie = open(self.cookie_path, 'r')
-        self.cUrl.setopt(pycurl.COOKIE,     cookie.read())
-        self.cUrl.setopt(pycurl.COOKIEJAR,  self.cookie_path)
-        self.cUrl.setopt(pycurl.COOKIEFILE, self.cookie_path)
-        cookie.close()
-
-        # self.cUrl.setopt(
-        #     pycurl.HTTPHEADER, [
-        #         'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        #         'Accept-Language: en-US,en;q=0.5',
-        #         'Accept-Encoding: gzip, deflate'
-        #     ])
+        self.cUrl.setopt(pycurl.COOKIE, self.cookie)
+        if self.cookie_path:
+            self.cUrl.setopt(pycurl.COOKIEJAR,  self.cookie_path)
+            self.cUrl.setopt(pycurl.COOKIEFILE, self.cookie_path)
         
     def _parse_header(self, header_line):
         '''_parse_header
@@ -253,9 +256,6 @@ class Session(TorSessionMixin):
             
         '''
         header_line = header_line.decode('iso-8859-1')
-        # header_file = open('header_file.txt', 'a')
-        # header_file.write(header_line)
-        # header_file.close()
         if ':' not in header_line:
             return 
 
@@ -428,10 +428,12 @@ class Session(TorSessionMixin):
         r = Response()
         b = BytesIO()
         self._set_proxy(removed_dns)
-        self.cUrl.setopt(pycurl.NOBODY, 1)
+        self.cUrl.setopt(pycurl.CUSTOMREQUEST, 'HEAD')
+        # self.cUrl.setopt(pycurl.NOBODY, True)
         self.cUrl.setopt(pycurl.WRITEDATA, b)
         self.cUrl.setopt(pycurl.URL, url)
         self.cUrl.perform()
+        # self.cUrl.close()
         r.set_headers(self.res_headers)
         r.set_value(self.cUrl)
         r.body = ''
