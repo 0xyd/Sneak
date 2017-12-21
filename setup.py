@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(name='sneak', 
 	version='0.0.1', 
@@ -7,7 +7,8 @@ setup(name='sneak',
 	author='yd',
 	author_email='davisfreeman1015@gmail.com',
 	license='Apache 2.0',
-	packages=['sneak'],
+	packages=find_packages('sneak', exclude=['test_data', 'tor_*']),
+	# packages=['sneak'],
 	install_requires=[
 		'stem',
 		'pycurl'
