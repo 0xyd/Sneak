@@ -1,6 +1,9 @@
 # Data for testing
 sneak/test_data
 
+# Ignore wiki
+Sneak.wiki
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
