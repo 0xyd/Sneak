@@ -411,75 +411,75 @@ class Session(TorSessionMixin):
             pycurl.USERAGENT, 'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0')
         return self._post(onion_url, data, True)
 
-    def _head(self, url, removed_dns=False):
-        '''_head
-        *description*
-            Perform GET operation with NOBODY request.
+    # def _head(self, url, removed_dns=False):
+    #     '''_head
+    #     *description*
+    #         Perform GET operation with NOBODY request.
 
-        *params*
-            url: <string>  
-            The url the head operation perform on.
+    #     *params*
+    #         url: <string>  
+    #         The url the head operation perform on.
 
-            removed_dns: <bool>  
-            The hostname should be resolved by socks server or not.
-            True: The hostname has to be resolved by SOCKS server.
-            False:  Hostname probably can be resolved locally.
-        '''
-        r = Response()
-        b = BytesIO()
-        self._set_proxy(removed_dns)
-        self.cUrl.setopt(pycurl.CUSTOMREQUEST, 'HEAD')
-        # self.cUrl.setopt(pycurl.NOBODY, True)
-        self.cUrl.setopt(pycurl.WRITEDATA, b)
-        self.cUrl.setopt(pycurl.URL, url)
-        self.cUrl.perform()
-        # self.cUrl.close()
-        r.set_headers(self.res_headers)
-        r.set_value(self.cUrl)
-        r.body = ''
-        return r
+    #         removed_dns: <bool>  
+    #         The hostname should be resolved by socks server or not.
+    #         True: The hostname has to be resolved by SOCKS server.
+    #         False:  Hostname probably can be resolved locally.
+    #     '''
+    #     r = Response()
+    #     b = BytesIO()
+    #     self._set_proxy(removed_dns)
+    #     self.cUrl.setopt(pycurl.CUSTOMREQUEST, 'HEAD')
+    #     # self.cUrl.setopt(pycurl.NOBODY, True)
+    #     self.cUrl.setopt(pycurl.WRITEDATA, b)
+    #     self.cUrl.setopt(pycurl.URL, url)
+    #     self.cUrl.perform()
+    #     # self.cUrl.close()
+    #     r.set_headers(self.res_headers)
+    #     r.set_value(self.cUrl)
+    #     r.body = ''
+    #     return r
 
-    def head(self, url):
-        '''head
-        *description*
-            Send a HTTP Head on the light url.
-        *params*
-            url: <string>  
-        '''
-        self.cUrl.setopt(
-            pycurl.USERAGENT, 
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, \
-            like Gecko) Chrome/62.0.3202.94 Safari/537.36')
-        return self._head(url)
+    # def head(self, url):
+    #     '''head
+    #     *description*
+    #         Send a HTTP Head on the light url.
+    #     *params*
+    #         url: <string>  
+    #     '''
+    #     self.cUrl.setopt(
+    #         pycurl.USERAGENT, 
+    #         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, \
+    #         like Gecko) Chrome/62.0.3202.94 Safari/537.36')
+    #     return self._head(url)
 
-    def head_onion(self, onion_url):
-        '''head
-        *description*
-            Send a HTTP Head on the dark url.
-        *params*
-            url: <string>  
-            The onion site you want to HEAD on.
-        '''
-        self.cUrl.setopt(
-            pycurl.USERAGENT, 'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0')
-        return self._head(onion_url, True)
+    # def head_onion(self, onion_url):
+    #     '''head
+    #     *description*
+    #         Send a HTTP Head on the dark url.
+    #     *params*
+    #         url: <string>  
+    #         The onion site you want to HEAD on.
+    #     '''
+    #     self.cUrl.setopt(
+    #         pycurl.USERAGENT, 'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0')
+    #     return self._head(onion_url, True)
 
-    def delete(self, url):
-        '''delete
-        *description*
-            Send a delete request.
-        *params*
-            url: <string>  
-            Where the delete request will be send to.
-        '''
-        pass
+    # def delete(self, url):
+    #     '''delete
+    #     *description*
+    #         Send a delete request.
+    #     *params*
+    #         url: <string>  
+    #         Where the delete request will be send to.
+    #     '''
+    #     pass
 
-    def delete_onion(self, onion_url):
-        '''delete_onion
-        *description*
-            Send a delete request on an onion site.
-        '''
-        pass
+    # def delete_onion(self, onion_url):
+    #     '''delete_onion
+    #     *description*
+    #         Send a delete request on an onion site.
+    #     '''
+    #     pass
 
     # 20171203 Y.D.: Move to tor.py
     # def terminate(self):
