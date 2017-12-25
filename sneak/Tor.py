@@ -6,6 +6,7 @@ import string
 import subprocess
 
 from stem import Signal
+from stem import CircStatus
 from stem import process as tor_process
 from stem.util import system, term
 from stem.control import Controller
@@ -122,13 +123,65 @@ class Proxy():
 		time.sleep(self.controller.get_newnym_wait())
 		display_msg('Identity has been renewed.', 'Finished')
 
-    # 20171203 Y.D. TODO: Display information about traffic before process be terminated.
 	def terminate(self):
 		'''terminate
 		*description*  
-			End the tor process.  
+			End the tor process. Before the Tor relay is killed, display how many bytes our relay is read or written. 
 		'''
+
+		bytes_read    = self.controller.get_info('traffic/read')
+		bytes_written = self.controller.get_info('traffic/written')
+		start_info    = term.format('Tor is terminating...', term.Color.CYAN)
+		end_info      = term.format('Tor is terminated sucessfully!', term.Color.CYAN)
+		bytes_read    = term.format('Our Relay has read %s bytes'    % bytes_read, term.Color.YELLOW)
+		bytes_written = term.format('Our Relay has written %s bytes' % bytes_written, term.Color.YELLOW)
+		print(start_info)
+		print(bytes_read)
+		print(bytes_written)
 		self.process.kill()
+		print(end_info)
+
+	# 20171225 Y.D. 
+	def list_circuits(self):
+		'''list_circuits
+		*description*
+			List all available circuits.
+
+		'''
+		for circuit in sorted(self.controller.get_circuits()):
+			if circuit.status != CircStatus.BUILT:
+				continue
+
+			circuit_meta = 'Circuit %s (%s)' % (circuit.id, circuit.purpose)
+			circuit_meta = term.format(circuit_meta, term.Color.GREEN)
+			print(circuit_meta)
+
+			for i, entry in enumerate(circuit.path):
+				div = '+' if (i == len(circuit.path)-1) else '|'
+				fingerprint, nickname = entry
+				desciption = self.controller.get_network_status(fingerprint, None)
+				address    = desciption.address if desciption else 'unknown'
+				nickname_and_address = '(%s, %s)' % (nickname, address)
+				nickname_and_address = term.format(nickname_and_address, term.Color.WHITE)
+				div_and_fingerprint  = '%s - %s' % (div, fingerprint)
+				div_and_fingerprint  = term.format(div_and_fingerprint, term.Color.YELLOW)
+				print('%s %s' % (div_and_fingerprint, nickname_and_address))
+
+	# 20171225 Y.D. TODO:
+	def build_circuit(self, path, purpose='general'):
+		'''
+		*description*
+			Build a new circuit.
+
+		*params*
+			path: <list>
+
+		'''
+		self.controller.new_circuit(path=path, purpose=purpose)
+		print(self.controller.get_info('circuit-status'))
+
+
+
 
 
 	
