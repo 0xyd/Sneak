@@ -17,7 +17,7 @@ Sneak is a URL transfer tool based on Tor technology.
 ### Install by pypi
 For people who just want to use the package, just install the package through pip install command.
 ```bash
-	$ pip install --index-url https://test.pypi.org/simple/ sneak
+$ pip install --index-url https://test.pypi.org/simple/ sneak
 ```
 
 ### Install by source
@@ -25,9 +25,9 @@ For people who just want to use the package, just install the package through pi
 Clone the project and install the package through setup.py
 
 ```bash
-	$ git clone https://github.com/yudazilian/Sneak.git (option)<path_name>
-    $ cd path_name
-    $ python setup.py install
+$ git clone https://github.com/yudazilian/Sneak.git (option)<path_name>
+$ cd path_name
+$ python setup.py install
 ```
 
 ### Install for Contribute/Development
@@ -36,14 +36,14 @@ For you who want to contribute this project together, go to the [development bra
 
 Then, install the package via pip command as below:
 ```bash
-	$ pip install -r dev_requirements.txt
+$ pip install -r dev_requirements.txt
 ```
 
 package requests, lxml and cssselect are used to test the if sneak works correctly or not.
 
 ### Uninstall
 ```bash
-	$ pip uninstall sneak
+$ pip uninstall sneak
 ```
 
 ## Contribution
