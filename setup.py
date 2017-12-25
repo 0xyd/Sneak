@@ -12,4 +12,5 @@ setup(name='sneak',
 		'stem',
 		'pycurl'
 	],
+	keywords='curl tor http',
 	zip_safe=False)
