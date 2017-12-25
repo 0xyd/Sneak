@@ -2,30 +2,35 @@
 Sneak is a URL transfer tool based on Tor technology.
 
 ## Features
-1. Dynamic ip addresses
-2. Multiprocess
+1. Dynamic Ip to hide user's true position
+2. Simple and elegant API.
+3. Access dark web handly.
 
 ## Dependencies
-Sneak hides itself through the tor so make sure the machines you are using are able to work with it.
 
-To use Tor's powerful techniques, we have to install stem, a python API of Tor.
-```
-    pip install stem
+For people who just want to use the package, just install the package through pip install command.
+```bash
+	$ pip install 
 ```
 
-We want to make Sneak more efficient and scalable, we choose pycurl rather than requests.
+For you who want to contribute this project together, you can install the package via pip command as below:
+```bash
+	$ pip install -r dev_requirements.txt
 ```
-    pip install pycurl
-```
+
+package requests, lxml and cssselect are used to test the if sneak works correctly or not.
 
 
 ## Installation
 
 [WARNING] We are currently on Testing, feel free to report any ideas and bugs.
 
-## API
 
 ## Contribution
+
+See our development [wiki](https://github.com/yudazilian/Sneak/wiki/Development) to see more information.
+
+
 
 
 

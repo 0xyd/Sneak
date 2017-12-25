@@ -7,8 +7,7 @@ setup(name='sneak',
 	author='yd',
 	author_email='davisfreeman1015@gmail.com',
 	license='Apache 2.0',
-	packages=find_packages('sneak', exclude=['test_data', 'tor_*']),
-	# packages=['sneak'],
+	packages=find_packages('sneak', exclude=['test_*', 'tor_*']),
 	install_requires=[
 		'stem',
 		'pycurl'
