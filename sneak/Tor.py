@@ -117,7 +117,6 @@ class Proxy():
 			because it will cause a huge burden on Tor.
 		'''
 		self.auth_controller()
-		# self._init_cUrl()
 		self.controller.signal(Signal.NEWNYM)
 		display_msg('Renewing the identity...',   'Update')
 		time.sleep(self.controller.get_newnym_wait())
@@ -135,13 +134,12 @@ class Proxy():
 		end_info      = term.format('Tor is terminated sucessfully!', term.Color.CYAN)
 		bytes_read    = term.format('Our Relay has read %s bytes'    % bytes_read, term.Color.YELLOW)
 		bytes_written = term.format('Our Relay has written %s bytes' % bytes_written, term.Color.YELLOW)
-		print(start_info)
-		print(bytes_read)
-		print(bytes_written)
+		display_msg(start_info, 'Info')
+		display_msg(bytes_read, 'Info')
+		display_msg(bytes_written, 'Info')
 		self.process.kill()
-		print(end_info)
+		display_msg(end_info, 'Info')
 
-	# 20171225 Y.D. 
 	def list_circuits(self):
 		'''list_circuits
 		*description*
@@ -154,7 +152,8 @@ class Proxy():
 
 			circuit_meta = 'Circuit %s (%s)' % (circuit.id, circuit.purpose)
 			circuit_meta = term.format(circuit_meta, term.Color.GREEN)
-			print(circuit_meta)
+			display_msg(circuit_meta, 'Info')
+			# print(circuit_meta)
 
 			for i, entry in enumerate(circuit.path):
 				div = '+' if (i == len(circuit.path)-1) else '|'
@@ -165,16 +164,18 @@ class Proxy():
 				nickname_and_address = term.format(nickname_and_address, term.Color.WHITE)
 				div_and_fingerprint  = '%s - %s' % (div, fingerprint)
 				div_and_fingerprint  = term.format(div_and_fingerprint, term.Color.YELLOW)
-				print('%s %s' % (div_and_fingerprint, nickname_and_address))
+				display_msg('%s %s' % (div_and_fingerprint, nickname_and_address))
+				# print('%s %s' % (div_and_fingerprint, nickname_and_address))
 
 	# 20171225 Y.D. TODO:
-	def build_circuit(self, path, purpose='general'):
+	def customize_circuit(self, path, purpose='general'):
 		'''
 		*description*
 			Build a new circuit.
 
 		*params*
-			path: <list>
+			path: <list>  
+			
 
 		'''
 		self.controller.new_circuit(path=path, purpose=purpose)
