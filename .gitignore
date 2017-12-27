@@ -4,6 +4,9 @@ sneak/test_data
 # Ignore wiki
 Sneak.wiki
 
+# Document Generator
+build_doc.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
