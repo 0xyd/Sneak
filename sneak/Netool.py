@@ -1,3 +1,7 @@
+'''
+	## Netool
+	Netool is used to check the Tor network's status.
+'''
 from stem import Signal
 from stem import CircStatus
 from stem import process as tor_process
@@ -12,52 +16,64 @@ from Http import Session as HttpSession
 
 class RouterTool():
 	'''
-	*descripton*
-		Netool is used to check the Tor network's status
+	### RouterTool
+	RouterTool is used to analysis the status of Tor's relays(roters).  
+
 	'''
 	def check_network(self, socks_port=9050, control_port=9051, proxy_host='localhost', exit_country_code='us', tor_path='tor_0'):
 		'''
-		*description*  
+		#### check_network
+		***description***  
 			Check the status of onion relays which are known currently.
 
-		*params*  
-			socks_port: <int>  
+		***params***  
+			socks_port: < int >  
             The port for SOCKS proxy.
 
-            control_port: <int>  
+            control_port: < int >  
             Tor uses the control port to communicate.
 
-            proxy_host: <string>  
+            proxy_host: < string >  
             The proxy host's ip address. 
             The default is localhost because most of people run Tor on their local machines. 
             Am I right?
 
-            exit_country_code: <string>  
+            exit_country_code: < string >  
             Decides where the exit nodes should be.
 
-            tor_path: <string>  
+            tor_path: < string >  
             The working directory for the tor process.
 
-        *return*  
-        	router_stat: <dict>
+        ***return***  
+        	router_stat: < dict >
         	The stat results of different types of relays and their statuses.  
 			
 			The Keys and the description of corresponding values are:  
-				Guards: The list of Guard relays.  
-				Fasts : The relays that are marked  
-				HSDirs: v2 hidden service directories which are up for at least 25 hours.  
-				Exits : 'Exit’ iff it allows exits to at least two of the ports 80, 443, and 6667 and allows exits to at least one /8 address space.  
-				Nameds: Directory 
-				Valids:   
-				V2Dirs:   
-				Stables:   
-				Unnameds: The routers whose name are failed to map their identities.  
-				Runnings: The authority managed to connect the routers to them successfully within the last 45 minutes   
-				Authorites: The authorities are called "Authoritiy" if the authority generating the network-status document believes they are.
-				Bandwiths : The bandwith the relay supports.  
-				FingerPrints: The unique identity of the onion relay.  
+				* Guards: The list of Guard relays.  
 
+				* Fasts : The relays that are marked   
 
+				* HSDirs: v2 hidden service directories which are up for at least 25 hours.  
+
+				* Exits : 'Exit’ iff it allows exits to at least two of the ports 80, 443, and 6667 and allows exits to at least one /8 address space.  
+
+				* Nameds: Directory  
+
+				* Valids: A relay that runs a version of Tor that is not broken.   
+
+				* V2Dirs: A router supports the v2 directory protocol if it has an open directory port and serving the directory protocol that clients need.  
+
+				* Stables: The relays's MTBT(Mean Time Between Failure) is at least the median for all known routers or its weighted MTBF is 7 days at least.  
+
+				* Unnameds: The routers whose name are failed to map their identities.  
+
+				* Runnings: The authority managed to connect the routers to them successfully within the last 45 minutes   
+
+				* Authorites: The authorities are called "Authoritiy" if the authority generating the network-status document believes they are.  
+
+				* Bandwiths: The bandwith the relay supports.  
+
+				* FingerPrints: The unique identity of the onion relay.  
 
 		'''
 		proxy = Proxy(socks_port=socks_port, control_port=control_port, 
@@ -130,19 +146,19 @@ class RouterTool():
 
 	def select_ntop_guards(self, router_stat, n=1):
 		'''
-		*description*  
+		#### select_ntop_guards
+		***description***  
 			Select n guards node with highest bandwidth.  
 
-		*params*  
-			router_stat: <dict>  
+		***params***  
+			router_stat: < dict >  
 			The stat of router produced by check_network function.
 
-			n: <int>  
+			n: < int >, default n is 1.  
 			The number of guards user want to choose. Must greater or equal to 1.
-			The default value is 1.
 
-		*return*  
-			guard_nodes: <list>  
+		***return***  
+			guard_nodes: < list >  
 			Return the guards which have top n highest bandwidth.  
 
 		'''
@@ -161,7 +177,7 @@ class RouterTool():
 
 	# def scan(self):
 	# 	'''
-	# 	*description*
+	# 	***description***
 	# 		Scan the relays on the onion network.
 	# 	'''
 	# 	http_session = HttpSession(socks_port=socks_port, control_port=control_port, 
