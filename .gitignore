@@ -1,5 +1,7 @@
 # Data for testing
-sneak/test_data
+cookies.txt
+test_settings.py
+
 
 # Ignore wiki
 Sneak.wiki
