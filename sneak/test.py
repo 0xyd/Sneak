@@ -10,7 +10,7 @@ import requests
 import lxml.html
 from lxml import cssselect
 
-from test_data import test_settings
+# from test_data import test_settings
 from sneak.Http import Session
 
 
@@ -41,7 +41,8 @@ class TestSession(unittest.TestCase):
     def test_renew_identity(self):
         '''test_renew_identity
         *description*
-            Test if the renew_identity function works well or not.
+            Test if the renew_identity function works well or not.  
+            
         '''
         s = Session()
         s.cUrl.setopt(pycurl.VERBOSE, True)

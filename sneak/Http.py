@@ -1,5 +1,9 @@
+'''
+    ## Http Module
+    Http module is designed handle http operators based on Tor proxy.  
+
+'''
 import re
-# import gzip
 import zlib
 from io import BytesIO
 
@@ -16,12 +20,64 @@ CHARSET_RE = re.compile(r'charset=(?P<encoding>.*)')
 HASHCODE_RE = re.compile(r'(?P<code>16:\w{20,})\n?')
 
 def trans_dict_to_tuple(dict_data):
+    '''
+    #### trans_dict_to_tuple()
+    ***description***
+        Transform dictionary data into tuple format.  
+
+    ***params***
+        dict_data: <dict>  
+        Arbitarary dictionary-type data.  
+
+    '''
     return ((str(key), str(val)) for key, val in dict_data.items())
 
 class Response():
     '''
-    *description*
-    
+    ### class Response  
+    ***description***
+        Response object is the handler object to read and parse http response.  
+        Besides, the response object contains information of connection time, lookup time and so on.
+        They can be used to measure the network status is stable or not.  
+
+    ***params***
+        status: < int >  
+        The http status code. Ex: 200, 404 ...
+
+        headers: < dict >  
+        The header string will be parsed to dictionary.  
+
+        charset: < string >  
+        The document's encoding type.  
+
+        body: < string >
+        The body of the html document.  
+
+        dns_time: < float >
+        The time spend on dns lookup.  
+        
+        start_transger_time: < float >  
+        Time from start until just when the first byte is received.  
+        See more [Detail](https://curl.haxx.se/libcurl/c/CURLINFO_STARTTRANSFER_TIME.html)  
+
+        total_time: < float >  
+        The total spend time of the http operation.  
+
+        redirect_count: < int >  
+        The redirect times of http operation.  
+
+        size_upload: < float >  
+        Number of bytes uploaded.  
+
+        size_download: < float >  
+        Number of bytes downloaded.  
+
+        header_size: < int >  
+        The size of headers which count in bytes.  
+
+        requests_size: <int>  
+        The size of request in bytes.  
+
     '''
 
     def __init__(self):
@@ -39,7 +95,17 @@ class Response():
         self.header_size  = None
         self.request_size = None
 
-    def set_headers(self, headers):
+    def set_headers_and_charset(self, headers):
+        '''
+        #### set_headers_and_charset()
+        ***description***  
+            Set up Response's header information and the charset.    
+            
+        ***params***  
+            headers: <dict>  
+            The dictionary-type header data.  
+
+        '''
         self.headers = headers
         try:
             self.charset = CHARSET_RE.search(headers['content-type'])
@@ -48,6 +114,17 @@ class Response():
             self.charset = 'utf-8'
 
     def set_value(self, curl):
+        '''
+        #### set_value()
+        ***description***  
+            Get information about the connection time, dns lookup time and so on.  
+            And store the data inside the response.  
+        
+        ***params***  
+            curl : < object curl >
+            The curl object which contains the http response.  
+
+        '''
         self.status = curl.getinfo(pycurl.HTTP_CODE)
         self.dns_time  = curl.getinfo(pycurl.NAMELOOKUP_TIME)                    
         self.conn_time = curl.getinfo(pycurl.CONNECT_TIME)            
@@ -60,6 +137,15 @@ class Response():
         self.request_size = curl.getinfo(pycurl.REQUEST_SIZE)                   
 
     def decode_body(self, body):
+        '''
+        #### decode_body()
+        ***description***  
+            The html body are usually transfer in compressed format to enchance the transfer efficiency.  
+
+        ***params***  
+            body: <string>  
+            The compressed http body data which is usally the html content itself.  
+        '''
         body = body[self.header_size:]
         try:
             if 'content-encoding' in self.headers:
@@ -71,6 +157,15 @@ class Response():
         self.body = body.decode(self.charset, errors='replace')
 
     def to_json(self):
+        '''
+        #### to_json()
+        ***description***  
+            Return headers in dictionary format that can easily transform to json.  
+
+        ***return***  
+            self.__dict__: <dict>  
+            Return response header in json format.  
+        '''
         return self.__dict__
 
 class TorSessionMixin(Proxy):
@@ -78,29 +173,30 @@ class TorSessionMixin(Proxy):
     def run_proxy(
         self, socks_port=9050, control_port=9051, 
         proxy_host='localhost', exit_country_code='us', tor_path='tor_0'):
-        '''set_proxy
-        *description*  
+        '''
+        #### set_proxy
+        ***description***  
             Set a proxy with specific setting.
 
-        *params*  
-            socks_port: <int>  
+        ***params***    
+            socks_port: < int >  
             The port for SOCKS proxy.
 
-            control_port: <int>  
+            control_port: < int >  
             Tor uses the control port to communicate.
 
-            proxy_host: <string>  
+            proxy_host: < string >  
             The proxy host's ip address. 
             The default is localhost because most of people run Tor on their local machines. 
             Am I right?
 
-            exit_country_code: <string>  
+            exit_country_code: < string >  
             Decides where the exit nodes should be.
 
-            tor_path: <string>  
+            tor_path: < string >  
             The working directory for the tor process.
 
-            cookie_path: <string>  
+            cookie_path: < string >  
             The path of cookie file.
         '''
         self.proxy = Proxy(
@@ -110,76 +206,72 @@ class TorSessionMixin(Proxy):
         self.proxy.auth_controller()
 
     def renew_identity(self):
-        '''renew_proxy
-        *description*  
+        '''
+        #### renew_identity
+        ***description***  
             Renew the identity to change tor's route.  
-
         '''
         self.proxy.renew_identity()
         self._init_cUrl()
         
 class Session(TorSessionMixin):
-    '''Session
-    *description*
-        The session craete the connection through the tor tcp proxy.
+    '''
+    ###class Session
+    ***description***
+        The session craete the connection through the tor tcp proxy.  
+
+    ***params***  
+        socks_port: < int >  
+        The port for SOCKS proxy.
+
+        control_port: < int >  
+        Tor uses the control port to communicate.
+
+        proxy_host: < string >  
+        The proxy host's ip address. 
+        The default is localhost because most of people run Tor on their local machines. 
+        Am I right?
+
+        exit_country_code: < string >  
+        Decides where the exit nodes should be.
+
+        ssl_version: < string >  
+        Choose a ssl_version. The default setting is tls_1_2. (TLS 1.3 is still a working draft.)
+        * tls_1_2: Set curl to use TLS 1.2 
+        * tls_1_1: Set curl to use TLS 1.1
+        * tls_1_0: Set curl to use TLS 1.0 
+        * tls_1  : Set curl to use TLS 1.x
+        * ssl_1  : Set curl to use SSL 1 (Not Recommend)
+        * ssl_2  : Set curl to use SSL 2 (Not Recommend)
+        * ssl_3  : Set curl to use SSL 3 (Not Recommend)
+
+        The list of SSL/TLS which are supported by curl are listed [here](https://curl.haxx.se/libcurl/c/CURLOPT_SSLVERSION.html).
+
+        ssl_verifypeer: < bool >  
+        Verify all certicicates on the CA chian are recognizable to curl.
+
+        ssl_verifyhost: < bool >  
+        Verify the certificate's name against host.
+        If the certificate cannot verify the host's name as it known, connection will fail.
+        [Reference](https://curl.haxx.se/libcurl/c/CURLOPT_SSL_VERIFYHOST.html)
+
+        tor_path: < string >  
+        The working directory for the tor process.
+
+        cookie: < string >
+        The cookie string.
+
+        cookie_path: < string >  
+        The path of cookie file.
+            
+        redirect: < bool >  
+        Allow the redirect or not.        
     
     '''
     def __init__(
         self, socks_port=9050, control_port=9051, proxy_host='localhost', exit_country_code='us', 
         tor_path='tor_0', cookie='', cookie_path='', keep_alive=False, redirect=False,
         ssl_version='tls_1_2' , ssl_verifypeer=True, ssl_verifyhost=True):
-        '''__init__
-        *description*
-            Session is running through Tor which is based on SOCKS proxy.
-
-        *params*
-            socks_port: <int>  
-            The port for SOCKS proxy.
-
-            control_port: <int>  
-            Tor uses the control port to communicate.
-
-            proxy_host: <string>  
-            The proxy host's ip address. 
-            The default is localhost because most of people run Tor on their local machines. 
-            Am I right?
-
-            exit_country_code: <string>  
-            Decides where the exit nodes should be.
-
-            ssl_version: <string>  
-            Choose a ssl_version. The default setting is tls_1_2. (TLS 1.3 is still a working draft.)
-            tls_1_2: Set curl to use TLS 1.2 
-            tls_1_1: Set curl to use TLS 1.1
-            tls_1_0: Set curl to use TLS 1.0 
-            tls_1  : Set curl to use TLS 1.x
-            ssl_1  : Set curl to use SSL 1 (Not Recommend)
-            ssl_2  : Set curl to use SSL 2 (Not Recommend)
-            ssl_3  : Set curl to use SSL 3 (Not Recommend)
-
-            The list of SSL/TLS which are supported by curl are listed [here](https://curl.haxx.se/libcurl/c/CURLOPT_SSLVERSION.html).
-
-            ssl_verifypeer: <bool>  
-            Verify all certicicates on the CA chian are recognizable to curl.
-
-            ssl_verifyhost: <bool>  
-            Verify the certificate's name against host.
-            If the certificate cannot verify the host's name as it known, connection will fail.
-            [Reference](https://curl.haxx.se/libcurl/c/CURLOPT_SSL_VERIFYHOST.html)
-
-            tor_path: <string>  
-            The working directory for the tor process.
-
-            cookie: <string>
-            The cookie string.
-
-            cookie_path: <string>  
-            The path of cookie file.
-            
-            redirect: <bool>  
-            Allow the redirect or not.
-
-        '''
         self.cUrl = None
         self.cookie   = cookie 
         self.redirect = redirect 
@@ -194,8 +286,9 @@ class Session(TorSessionMixin):
         self._init_cUrl()
 
     def _init_cUrl(self):
-        '''_init_cUrl
-        *description*  
+        '''
+        #### _init_cUrl()
+        ***description***  
             Prepare the curl for http operations.
             About security settings
         '''
@@ -246,12 +339,13 @@ class Session(TorSessionMixin):
             self.cUrl.setopt(pycurl.COOKIEFILE, self.cookie_path)
         
     def _parse_header(self, header_line):
-        '''_parse_header
-        *description*  
+        '''
+        #### _parse_header()
+        ***description***  
             The function is used to parse response's header line by line.
 
-        *params*  
-            header_line: <string>  
+        ***params***    
+            header_line: < string >  
             pycurl reads response's header one line at a time.
             
         '''
@@ -266,14 +360,15 @@ class Session(TorSessionMixin):
         self.res_headers[name] = value
     
     def _set_proxy(self, removed_dns=False):
-        '''_set_proxy
-        *description*
+        '''
+        #### _set_proxy()
+        ***description***
             Set up the proxy server.
             Basically, the normal hostnames can be resolved locally;
             the hidden services, however, has to be resolved by socks server.
 
-        *params*
-            removed_dns: <bool>  
+        ***params***  
+            removed_dns: < bool >  
             removed_dns decides the hostname is to be resolved by socks server or locally.
             
         '''
@@ -285,18 +380,20 @@ class Session(TorSessionMixin):
         self.cUrl.setopt(pycurl.PROXYPORT, self.proxy.socks_port)
 
     def _get(self, url, removed_dns=False):
-        '''_get
-        *description*
+        '''
+        #### _get()
+        ***description***
             Use pycurl to do HTTP GET method.
 
-        *params*
-            url: <string>  
+        ***params***  
+            url: < string >  
             Url you want to get.
 
-            removed_dns: <bool>  
+            removed_dns: < bool >  
             The hostname should be resolved by socks server or not.
             True: The hostname has to be resolved by SOCKS server.
-            False:  Hostname probably can be resolved locally.
+            False:  Hostname probably can be resolved locally.  
+
         '''
         r = Response()
         b = BytesIO()
@@ -306,16 +403,20 @@ class Session(TorSessionMixin):
         self.cUrl.setopt(pycurl.WRITEDATA, b)
         self.cUrl.perform()
 
-        r.set_headers(self.res_headers)
+        r.set_headers_and_charset(self.res_headers)
         r.set_value(self.cUrl)
         r.decode_body(b.getvalue())
         
         return r
 
     def get(self, url):
-        '''get
-        *description*
-            A GET HTTP method for non-hidden services.
+        '''
+        #### get()
+        ***description***
+            A GET HTTP method for non-hidden services.  
+        ***params***  
+            url: < string >
+            The host's url which you want to get. 
         '''
         self.cUrl.setopt(
             pycurl.USERAGENT, 
@@ -324,12 +425,13 @@ class Session(TorSessionMixin):
         return self._get(url)
 
     def get_onion(self, onion_url):
-        '''get_onion
-        *description*
+        '''
+        #### get_onion()
+        ***description***
             Perfom GET method on onion service.
 
-        *params*
-            onion_url:
+        ***params***  
+            onion_url: <string>
             An url of the hidden service. 
             The end of domain should be '.onion'.
         '''
@@ -342,18 +444,19 @@ class Session(TorSessionMixin):
             print('The URL is not an onion. Please use get() instead')
 
     def _post(self, url, data, removed_dns=False):
-        '''_post
-        *description*
+        '''
+        #### _post()
+        ***description***
             Use pycurl to do HTTP POST method.
 
-        *params*
-            url: <string>  
+        ***params***  
+            url: < string >  
             Post a certain data on an url.
 
             data: <dict>  
-            The data that w
+            The data that we want to send to the host. 
 
-            removed_dns: <bool>  
+            removed_dns: < bool >  
             The hostname should be resolved by socks server or not.
             True: The hostname has to be resolved by SOCKS server.
             False:  Hostname probably can be resolved locally.            
@@ -369,19 +472,20 @@ class Session(TorSessionMixin):
         self.cUrl.setopt(pycurl.POST, 1)
         self.cUrl.setopt(pycurl.HTTPPOST, post_data)
         self.cUrl.perform()
-        r.set_headers(self.res_headers)
+        r.set_headers_and_charset(self.res_headers)
         r.set_value(self.cUrl)
         r.decode_body(b.getvalue())
         
         return r
 
     def post(self, url, data={}):
-        '''post
-        *description*
+        '''
+        #### post()
+        ***description***
             POST a new data to the server through the url.
 
-        *params*
-            url: <string>  
+        ***params***  
+            url: < string >  
             The url to conduct HTTP POST method.
 
             data: <dict>  
@@ -395,12 +499,13 @@ class Session(TorSessionMixin):
         return self._post(url, data)
 
     def post_onion(self, onion_url, data={}):
-        '''post_onion
-        *description*
+        '''
+        #### post_onion()
+        ***description***
             Conduct a HTTP POST in the dark world
 
-        *params*
-            onion_url: <string>  
+        ***params***  
+            onion_url: < string >  
             The hidden service's url to do HTTP POST method.
 
             data: <dict>  
@@ -412,18 +517,20 @@ class Session(TorSessionMixin):
         return self._post(onion_url, data, True)
 
     def _head(self, url, removed_dns=False):
-        '''_head
-        *description*
+        '''
+        #### _head()
+        ***description***
             Perform GET operation with NOBODY request.
 
-        *params*
-            url: <string>  
+        ***params***  
+            url: < string >  
             The url the head operation perform on.
 
-            removed_dns: <bool>  
+            removed_dns: < bool >  
             The hostname should be resolved by socks server or not.
             True: The hostname has to be resolved by SOCKS server.
             False:  Hostname probably can be resolved locally.
+
         '''
         r = Response()
         b = BytesIO()
@@ -434,17 +541,20 @@ class Session(TorSessionMixin):
         self.cUrl.setopt(pycurl.URL, url)
         self.cUrl.perform()
         # self.cUrl.close()
-        r.set_headers(self.res_headers)
+        r.set_headers_and_charset(self.res_headers)
         r.set_value(self.cUrl)
         r.body = ''
         return r
 
     def head(self, url):
-        '''head
-        *description*
+        '''
+        #### head()
+        ***description***
             Send a HTTP Head on the light url.
-        *params*
-            url: <string>  
+        ***params***  
+            url: < string >
+            The host's url which you want to head.   
+
         '''
         self.cUrl.setopt(
             pycurl.USERAGENT, 
@@ -453,11 +563,12 @@ class Session(TorSessionMixin):
         return self._head(url)
 
     def head_onion(self, onion_url):
-        '''head
-        *description*
+        '''
+        #### head_onion()
+        ***description***
             Send a HTTP Head on the dark url.
-        *params*
-            url: <string>  
+        ***params***  
+            url: < string >  
             The onion site you want to HEAD on.
         '''
         self.cUrl.setopt(
@@ -465,18 +576,20 @@ class Session(TorSessionMixin):
         return self._head(onion_url, True)
 
     def delete(self, url):
-        '''delete
-        *description*
+        '''
+        #### delete()
+        ***description***
             Send a delete request.
-        *params*
-            url: <string>  
+        ***params***  
+            url: < string >  
             Where the delete request will be send to.
         '''
         pass
 
     def delete_onion(self, onion_url):
-        '''delete_onion
-        *description*
+        '''
+        #### delete_onion()
+        ***description***
             Send a delete request on an onion site.
         '''
         pass
@@ -484,7 +597,7 @@ class Session(TorSessionMixin):
     # 20171203 Y.D.: Move to tor.py
     # def terminate(self):
     #     '''terminate
-    #     *description*
+    #     ***description***
     #         End the tor process.
     #     '''
     #     self.tor_process.kill()
