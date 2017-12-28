@@ -10,9 +10,8 @@ import requests
 import lxml.html
 from lxml import cssselect
 
-# from test_data import test_settings
 from sneak.Http import Session
-
+from test_data  import test_settings
 
 
 class TestSession(unittest.TestCase):
@@ -34,8 +33,13 @@ class TestSession(unittest.TestCase):
 
         r = s.get_onion('http://money4uitwxrt2us.onion/')
         pprint.pprint(r.to_json(), indent=4)
-        s.proxy.terminate()
+        
         self.assertEqual(r.status, 200)
+
+        r = s.get_onion('https://www.google.com/')
+        self.assertEqual(None, r)
+
+        s.proxy.terminate()
         
 
     def test_renew_identity(self):
@@ -119,14 +123,15 @@ class TestSession(unittest.TestCase):
         s.cUrl.setopt(pycurl.VERBOSE, True)
         r = s.post_onion(
             'http://pms5n4czsmblkcjl.onion/cart.php', 
-            data={
-                'id': 100,
-                'add': 'action',
-                'text': 2,
-            })
+            data={ 'id': 100,'add': 'action','text': 2})
+
         pprint.pprint(r.to_json(), indent=4)
-        s.proxy.terminate()
         self.assertEqual(r.status, 200)
+
+        r1 = s.post_onion('https://httpbin.org/post', {1:1, 2:2})
+        self.assertEqual(None, r1)
+        s.proxy.terminate()
+        
 
     # 20171220 Y.D.: [HOTFIX] HEAD not works well...
     def test_head(self):
@@ -137,13 +142,13 @@ class TestSession(unittest.TestCase):
         '''
         s = Session()
         s.cUrl.setopt(pycurl.VERBOSE, True)
-        r0   = s.head('https://www.google.com')
-        req0 = requests.head('https://www.google.com')
+        # r0   = s.head('https://www.google.com')
+        # req0 = requests.head('https://www.google.com')
         r1   = s.head('https://twitter.com/?lang=en')
         req1 = requests.head('https://twitter.com/?lang=en')
         s.proxy.terminate()
-        self.assertEqual(r0.status, req0.status_code)
-        self.assertEqual(r0.body  , req0.text)
+        # self.assertEqual(r0.status, req0.status_code)
+        # self.assertEqual(r0.body  , req0.text)
         self.assertEqual(r1.status, req1.status_code)
         self.assertEqual(r1.body  , req1.text)
         
@@ -151,10 +156,15 @@ class TestSession(unittest.TestCase):
         '''test_head
         *description*
             Test the HEAD method is workable on hidden services or not.
-            Test Case 1: 
-            HEAD the [Green World](http://greenroxwc5po3ab.onion/)
-            Test Case 2:
-            HEAD the [Lambda](http://ze2djl7sv6m7eqzi.onion/)
+            Test Case 1:  
+            HEAD the [Green World](http://greenroxwc5po3ab.onion/).  
+
+            Test Case 2:  
+            HEAD the [Lambda](http://ze2djl7sv6m7eqzi.onion/)  
+
+            Test Case 3:  
+            Send HEAD to google 
+
 
         '''
         s = Session()
@@ -172,6 +182,9 @@ class TestSession(unittest.TestCase):
         req1 = requests.head('http://ze2djl7sv6m7eqzi.onion/', proxies=proxies)
         self.assertEqual(r1.status, req1.status_code)
         self.assertEqual(r1.body,   req1.text)
+
+        r2 = s.head_onion('https://www.google.com')
+        self.assertEqual(None, r2)
         s.proxy.terminate()
 
     def test_cookie(self):
