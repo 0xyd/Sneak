@@ -1,0 +1,4 @@
+PYPI_USERNAME = ''
+PYPI_PASSWORD = '' 
+PYPI_NONCE    = ''
+PYPI_COOKIE   = ''
