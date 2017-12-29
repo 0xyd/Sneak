@@ -362,7 +362,6 @@ class Session(TorSessionMixin):
         self.res_headers[name] = value
     
     def _set_proxy(method, removed_dns=False):
-    # def _set_proxy(self, removed_dns=False):
         '''
         #### _set_proxy()
         ***description***
@@ -397,13 +396,6 @@ class Session(TorSessionMixin):
                     return fn(self, url)
             return set_proxy
         return decorator
-
-        # self.cUrl.setopt(pycurl.PROXY, self.proxy.host)
-        # if removed_dns:
-        #     self.cUrl.setopt(pycurl.PROXYTYPE, pycurl.PROXYTYPE_SOCKS5_HOSTNAME)
-        # else:
-        #     self.cUrl.setopt(pycurl.PROXYTYPE, pycurl.PROXYTYPE_SOCKS5)
-        # self.cUrl.setopt(pycurl.PROXYPORT, self.proxy.socks_port)
 
     # 20171228 Y.D. TODO
     def _set_agent(method, removed_dns):
@@ -453,23 +445,6 @@ class Session(TorSessionMixin):
             return set_agent
         return decorator
 
-
-            # def set_agent(self, url):
-                                  
-
-            #         self.cUrl.setopt(pycurl.USERAGENT, 
-            #             'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0')
-            #     if method == 'POST' and removed_dns:
-            #         self.cUrl.setopt(pycurl.USERAGENT, 
-            #             'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0')
-            #     elif method == 'GET':
-            #         self.cUrl.setopt(pycurl.USERAGENT, 
-            #             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, \
-            #             like Gecko) Chrome/62.0.3202.94 Safari/537.36')
-            #     return fn(self, url)
-        #     return set_agent
-        # return decorator
-
     def _is_onion(method):
         '''
         #### _is_onion()
@@ -502,7 +477,6 @@ class Session(TorSessionMixin):
 
         
     def _get(f):  
-    # def _get(self, url, removed_dns=False):
         '''
         #### _get()
         ***description***
@@ -523,26 +497,17 @@ class Session(TorSessionMixin):
             b = BytesIO()
             self.cUrl.setopt(pycurl.URL, url)
             self.cUrl.setopt(pycurl.WRITEDATA, b)
-            self.cUrl.perform()
 
-            r.set_headers_and_charset(self.res_headers)
-            r.set_value(self.cUrl)
-            r.decode_body(b.getvalue())
-            return r
+            try:
+                self.cUrl.perform()
+                r.set_headers_and_charset(self.res_headers)
+                r.set_value(self.cUrl)
+                r.decode_body(b.getvalue())
+                return r
+            except Exception as e:
+                print(e)
+                return 
         return get
-
-        # r = Response()
-        # b = BytesIO()
-
-        # self._set_proxy(removed_dns)
-        # self.cUrl.setopt(pycurl.URL, url)
-        # self.cUrl.setopt(pycurl.WRITEDATA, b)
-        # self.cUrl.perform()
-
-        # r.set_headers_and_charset(self.res_headers)
-        # r.set_value(self.cUrl)
-        # r.decode_body(b.getvalue())
-        # return r
 
     @_set_agent('GET', False)
     @_set_proxy('GET', False)
@@ -556,23 +521,7 @@ class Session(TorSessionMixin):
             url: < string >
             The host's url which you want to get. 
         '''
-        # r = Response()
-        # b = BytesIO()
-        # self.cUrl.setopt(pycurl.URL, url)
-        # self.cUrl.setopt(pycurl.WRITEDATA, b)
-        # self.cUrl.perform()
-        # r.set_headers_and_charset(self.res_headers)
-        # r.set_value(self.cUrl)
-        # r.decode_body(b.getvalue())
-        # print('check r')
-        # print(r)
         return 
-
-        # self.cUrl.setopt(
-        #     pycurl.USERAGENT, 
-        #     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, \
-        #     like Gecko) Chrome/62.0.3202.94 Safari/537.36')
-        # return self._get(url)
 
     @_is_onion('GET')
     @_set_agent('GET', True)
@@ -590,24 +539,6 @@ class Session(TorSessionMixin):
             The end of domain should be '.onion'.
         '''
         return 
-        # if ONION_RE.search(onion_url):
-        #     # r = Response()
-        #     # b = BytesIO()
-        #     # self.cUrl.setopt(pycurl.URL, onion_url)
-        #     # self.cUrl.setopt(pycurl.WRITEDATA, b)
-        #     # self.cUrl.perform()
-        #     # r.set_headers_and_charset(self.res_headers)
-        #     # r.set_value(self.cUrl)
-        #     # r.decode_body(b.getvalue())
-        #     # print('check r')
-        #     # print(r)
-        #     return 
-        #     # self.cUrl.setopt(
-        #     #     pycurl.USERAGENT, 'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0')
-        #     # return self._get(onion_url, True)
-        # else:
-        #     print('The URL is not an onion. Please use get() instead')
-        
 
     def _post(fn):
     # def _post(self, url, data, removed_dns=False):
@@ -638,29 +569,17 @@ class Session(TorSessionMixin):
             self.cUrl.setopt(pycurl.WRITEDATA, b)
             self.cUrl.setopt(pycurl.POST, 1)
             self.cUrl.setopt(pycurl.HTTPPOST, post_data)
-            self.cUrl.perform()
-            r.set_headers_and_charset(self.res_headers)
-            r.set_value(self.cUrl)
-            r.decode_body(b.getvalue())
-            return r
+            try:
+                self.cUrl.perform()
+                r.set_headers_and_charset(self.res_headers)
+                r.set_value(self.cUrl)
+                r.decode_body(b.getvalue())
+                return r
+            except Exception as e:
+                print(e)
+                return 
+            
         return post
-
-
-        # r = Response()
-        # b = BytesIO()
-        # post_data = []
-        # post_data.extend(trans_dict_to_tuple(data))
-        # self._set_proxy(removed_dns)
-        # self.cUrl.setopt(pycurl.URL, url)
-        # self.cUrl.setopt(pycurl.WRITEDATA, b)
-        # self.cUrl.setopt(pycurl.POST, 1)
-        # self.cUrl.setopt(pycurl.HTTPPOST, post_data)
-        # self.cUrl.perform()
-        # r.set_headers_and_charset(self.res_headers)
-        # r.set_value(self.cUrl)
-        # r.decode_body(b.getvalue())
-        
-        # return r
 
     @_set_agent('POST', False)
     @_set_proxy('POST', False)
@@ -679,28 +598,7 @@ class Session(TorSessionMixin):
             The data which is used to post form. 
 
         '''
-
-        # r = Response()
-        # b = BytesIO()
-        # post_data = []
-        # post_data.extend(trans_dict_to_tuple(data))
-        # print('check data: ')
-        # print(post_data)
-        # self.cUrl.setopt(pycurl.URL, url)
-        # self.cUrl.setopt(pycurl.WRITEDATA, b)
-        # self.cUrl.setopt(pycurl.POST, 1)
-        # self.cUrl.setopt(pycurl.HTTPPOST, post_data)
-        # self.cUrl.perform()
-        # r.set_headers_and_charset(self.res_headers)
-        # r.set_value(self.cUrl)
-        # r.decode_body(b.getvalue())
         return 
-
-        # self.cUrl.setopt(
-        #     pycurl.USERAGENT, 
-        #     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, \
-        #     like Gecko) Chrome/62.0.3202.94 Safari/537.36')
-        # return self._post(url, data)
 
     @_is_onion('POST')
     @_set_agent('POST', True)
@@ -721,9 +619,6 @@ class Session(TorSessionMixin):
         '''
         # Simulate Tor's user agent
         return
-        # self.cUrl.setopt(
-        #     pycurl.USERAGENT, 'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0')
-        # return self._post(onion_url, data, True)
 
     def _head(fn):
     # def _head(self, url, removed_dns=False):
@@ -757,23 +652,9 @@ class Session(TorSessionMixin):
                 return r
             except Exception as e:
                 print(e)
-                return r
-            # self.cUrl.close()
+                return 
             
         return head
-
-        # # user_agent = CURL_RE.search(pycurl.version).group('ver')
-        # # self.cUrl.setopt(pycurl.USERAGENT, user_agent)
-        # self.cUrl.setopt(pycurl.CUSTOMREQUEST, 'HEAD')
-        # self.cUrl.setopt(pycurl.NOBODY, True)
-        # self.cUrl.setopt(pycurl.WRITEDATA, b)
-        # self.cUrl.setopt(pycurl.URL, url)
-        # self.cUrl.perform()
-        # # self.cUrl.close()
-        # r.set_headers_and_charset(self.res_headers)
-        # r.set_value(self.cUrl)
-        # r.body = ''
-        # return r
 
     @_set_agent('HEAD', False)
     @_set_proxy('HEAD', False)
@@ -788,33 +669,7 @@ class Session(TorSessionMixin):
             The host's url which you want to head.   
 
         '''
-        # r = Response()
-        # b = BytesIO()
-        # # self._set_proxy(removed_dns)
-
-        # # user_agent = CURL_RE.search(pycurl.version).group('ver')
-        # # self.cUrl.setopt(pycurl.USERAGENT, user_agent)
-        # self.cUrl.setopt(pycurl.CUSTOMREQUEST, 'HEAD')
-        # self.cUrl.setopt(pycurl.NOBODY, True)
-        # self.cUrl.setopt(pycurl.WRITEDATA, b)
-        # self.cUrl.setopt(pycurl.URL, url)
-        # self.cUrl.perform()
-        # # self.cUrl.close()
-        # r.set_headers_and_charset(self.res_headers)
-        # r.set_value(self.cUrl)
-        # r.body = ''
-        # return r
         return
-
-
-        # user_agent = CURL_RE.search(pycurl.version).group('ver')
-        # self.cUrl.setopt(pycurl.USERAGENT, user_agent)
-        # self.cUrl.setopt(
-        #     pycurl.USERAGENT, 
-        #     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, \
-        #     like Gecko) Chrome/62.0.3202.94 Safari/537.36')
-
-        # return self._head(url)
 
     @_is_onion('HEAD')
     @_set_agent('HEAD', True)
@@ -830,9 +685,6 @@ class Session(TorSessionMixin):
             The onion site you want to HEAD on.
         '''
         return 
-        # self.cUrl.setopt(
-        #     pycurl.USERAGENT, 'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0')
-        # return self._head(onion_url, True)
 
     def delete(self, url):
         '''
