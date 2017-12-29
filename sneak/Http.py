@@ -167,6 +167,7 @@ class Response():
         ***return***  
             self.__dict__: < dict >  
             Return response header in json format.  
+
         '''
         return self.__dict__
 
@@ -365,83 +366,75 @@ class Session(TorSessionMixin):
         '''
         #### _set_proxy()
         ***description***
-            Set up the proxy server.
-            Basically, the normal hostnames can be resolved locally;
-            the hidden services, however, has to be resolved by socks server.
+            _set_proxy is a decorator to set up the proxy server.
+            Basically, the normal hostnames can be resolved by normal dns service;
+            the hidden services, however, has to be resolved by socks server locally.
 
         ***params***  
+            method: < string >
+            The names of Http method such as GET, POST, HEAD.  
+
             removed_dns: < bool >  
-            removed_dns decides the hostname is to be resolved by socks server or locally.
+            The hostname should be resolved by socks server or not.
+            True:   The hostname has to be resolved by SOCKS server locally.
+            False:  Hostname have to resolve by DNS servers. 
             
         '''
         def decorator(fn):
-            if method == 'POST':
-                def set_proxy(self, url, data={}):
-                    self.cUrl.setopt(pycurl.PROXY, self.proxy.host)
-                    self.cUrl.setopt(pycurl.PROXYPORT, self.proxy.socks_port)
-                    if removed_dns:
-                        self.cUrl.setopt(pycurl.PROXYTYPE, pycurl.PROXYTYPE_SOCKS5_HOSTNAME)
-                    else:
-                        self.cUrl.setopt(pycurl.PROXYTYPE, pycurl.PROXYTYPE_SOCKS5)
-                    return fn(self, url, data)
+            def set_proxy(self, url, **kwargs):
+                self.cUrl.setopt(pycurl.PROXY, self.proxy.host)
+                self.cUrl.setopt(pycurl.PROXYPORT, self.proxy.socks_port)    
+                if removed_dns:
+                    self.cUrl.setopt(pycurl.PROXYTYPE, pycurl.PROXYTYPE_SOCKS5_HOSTNAME)
+                else:
+                    self.cUrl.setopt(pycurl.PROXYTYPE, pycurl.PROXYTYPE_SOCKS5) 
 
-            elif method == 'GET' or method == 'HEAD':
-                def set_proxy(self, url):
-                    self.cUrl.setopt(pycurl.PROXY, self.proxy.host)
-                    self.cUrl.setopt(pycurl.PROXYPORT, self.proxy.socks_port)
-                    if removed_dns:
-                        self.cUrl.setopt(pycurl.PROXYTYPE, pycurl.PROXYTYPE_SOCKS5_HOSTNAME)
-                    else:
-                        self.cUrl.setopt(pycurl.PROXYTYPE, pycurl.PROXYTYPE_SOCKS5)
+                if method == 'POST':
+                    for k, v in kwargs.items():
+                        if k == 'data':
+                            return fn(self, url, data=v)
+                elif method == 'GET' or method == 'HEAD':
                     return fn(self, url)
             return set_proxy
         return decorator
 
-    # 20171228 Y.D. TODO
     def _set_agent(method, removed_dns):
         '''
         #### _set_agent()
         ***description***
-            Use pycurl to do HTTP GET method.
+            Set the user-agent.  
 
         ***params***  
-            url: < string >  
-            Url you want to get.
+            method: < string >
+            The names of Http method such as GET, POST, HEAD.  
 
             removed_dns: < bool >  
             The hostname should be resolved by socks server or not.
-            True: The hostname has to be resolved by SOCKS server.
-            False:  Hostname probably can be resolved locally.  
+            True:   The hostname has to be resolved by SOCKS server locally.
+            False:  Hostname have to resolve by DNS servers. 
 
         '''
         def decorator(fn):
-            if method == 'GET':
-                def set_agent(self, url):
-                    if removed_dns:
-                        self.cUrl.setopt(pycurl.USERAGENT, 
-                            'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0')
-                    else:
-                        self.cUrl.setopt(pycurl.USERAGENT, 
-                            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, \
-                            like Gecko) Chrome/62.0.3202.94 Safari/537.36')
-                    return fn(self, url)
-
-            elif method == 'POST':
-                def set_agent(self, url, data={}):
-                    if removed_dns:
-                        self.cUrl.setopt(pycurl.USERAGENT, 
-                            'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0')
-                    else:
-                        self.cUrl.setopt(pycurl.USERAGENT, 
-                            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, \
-                            like Gecko) Chrome/62.0.3202.94 Safari/537.36')
-                    return fn(self, url, data)
-
-            elif method == 'HEAD':
-                def set_agent(self, url):
+            def set_agent(self, url, **kwargs):
+                # Sneak prentent itself as a browser in GET and POST.
+                if (method == 'GET' or method == 'POST') and removed_dns:
+                    self.cUrl.setopt(pycurl.USERAGENT, 
+                        'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0')
+                elif method == 'GET' or method == 'POST':
+                    self.cUrl.setopt(pycurl.USERAGENT, 
+                        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, \
+                        like Gecko) Chrome/62.0.3202.94 Safari/537.36')
+                # Sneak run as a curl agent when do HEAD operation
+                elif method == 'HEAD':
                     user_agent = CURL_RE.search(pycurl.version).group('ver')
                     self.cUrl.setopt(pycurl.USERAGENT, user_agent)
-                    return fn(self, url)                    
+
+                if method == 'GET' or method == 'HEAD':
+                    return fn(self, url)
+                elif method == 'POST':
+                    for k, v in kwargs.items():
+                        if k == 'data':
+                            return fn(self, url, data=v)
             return set_agent
         return decorator
 
@@ -449,7 +442,7 @@ class Session(TorSessionMixin):
         '''
         #### _is_onion()
         ***description***  
-            Check if the url is onion site or not.  
+            is_onion() is a decorator function to check if the url is onion site or not.  
             If it is not an onion site, pass None to stop function.  
 
         ***params***  
@@ -458,31 +451,33 @@ class Session(TorSessionMixin):
 
         '''
         def decorator(fn):
-            if method == 'GET' or method == 'HEAD':
-                def is_onion(self, url):
-                    if ONION_RE.search(url):
-                        return fn(self, url)
-                    else:
-                        print('The URL is not an onion. Please use get() instead')
-                        return None
-            elif method == 'POST':
-                def is_onion(self, url, data={}):
-                    if ONION_RE.search(url):
-                        return fn(self, url, data)
-                    else:
-                        print('The URL is not an onion. Please use get() instead')
-                        return None
+            def is_onion(self, url, **kwargs):
+                is_onion_service = False
+                if ONION_RE.search(url):
+                    is_onion_service = True
+                if is_onion_service != True:
+                    print('The URL is not an onion. Please use get() instead')
+                    return None
+
+                if method == 'GET' or method == 'HEAD':
+                    return fn(self, url)
+                elif method == 'POST':
+                    for k, v in kwargs.items():
+                        if k == 'data':
+                            return fn(self, url, data=v)
             return is_onion
         return decorator
-
         
     def _get(f):  
         '''
         #### _get()
         ***description***
-            Use pycurl to do HTTP GET method.
+            _get() is the decorator function for get() and get_onion().  
+            The details of curl to perform GET are implemented here.  
 
         ***params***  
+            f: < function >  
+
             url: < string >  
             Url you want to get.
 
@@ -517,9 +512,15 @@ class Session(TorSessionMixin):
         #### get()
         ***description***
             A GET HTTP method for non-hidden services.  
+
         ***params***  
             url: < string >
-            The host's url which you want to get. 
+            The host's url which you want to get.  
+
+        ***return***  
+            r: <Response object>
+            The response object will be return if GET can work well.  
+            Otherwise, the None will be return.  
         '''
         return 
 
@@ -536,12 +537,16 @@ class Session(TorSessionMixin):
         ***params***  
             onion_url: < string >
             An url of the hidden service. 
-            The end of domain should be '.onion'.
+            The end of domain should be '.onion'.  
+
+        ***return***  
+            r: <Response object>
+            The response object will be return if GET can work well.  
+            Otherwise, the None will be return.
         '''
         return 
 
     def _post(fn):
-    # def _post(self, url, data, removed_dns=False):
         '''
         #### _post()
         ***description***
@@ -553,12 +558,6 @@ class Session(TorSessionMixin):
 
             data: < dict >  
             The data that we want to send to the host. 
-
-            removed_dns: < bool >  
-            The hostname should be resolved by socks server or not.
-            True: The hostname has to be resolved by SOCKS server.
-            False:  Hostname probably can be resolved locally.            
-
         '''
         def post(self, url, data):
             r = Response()
@@ -597,6 +596,11 @@ class Session(TorSessionMixin):
             data: < dict >  
             The data which is used to post form. 
 
+        ***return***  
+            r: <Response object>
+            The response object will be return if GET can work well.  
+            Otherwise, the None will be return.  
+
         '''
         return 
 
@@ -616,6 +620,12 @@ class Session(TorSessionMixin):
 
             data: < dict >  
             The data which is used to post form.
+
+        ***return***  
+            r: <Response object>
+            The response object will be return if GET can work well.  
+            Otherwise, the None will be return. 
+
         '''
         # Simulate Tor's user agent
         return
@@ -653,7 +663,6 @@ class Session(TorSessionMixin):
             except Exception as e:
                 print(e)
                 return 
-            
         return head
 
     @_set_agent('HEAD', False)
@@ -663,10 +672,16 @@ class Session(TorSessionMixin):
         '''
         #### head()
         ***description***
-            Send a HTTP Head on the light url.
+            Send a HTTP Head on the light url.  
+
         ***params***  
             url: < string >
             The host's url which you want to head.   
+
+        ***return***  
+            r: <Response object>
+            The response object will be return if GET can work well.  
+            Otherwise, the None will be return. 
 
         '''
         return
@@ -679,10 +694,16 @@ class Session(TorSessionMixin):
         '''
         #### head_onion()
         ***description***
-            Send a HTTP Head on the dark url.
+            Send a HTTP Head on the dark url.  
+
         ***params***  
             url: < string >  
-            The onion site you want to HEAD on.
+            The onion site you want to HEAD on.  
+
+        ***return***  
+            r: <Response object>
+            The response object will be return if GET can work well.  
+            Otherwise, the None will be return. 
         '''
         return 
 

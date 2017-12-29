@@ -91,7 +91,7 @@ class TestSession(unittest.TestCase):
         # TestCase 1.
         s = Session(exit_country_code='tw')
         s.cUrl.setopt(pycurl.VERBOSE, True)
-        r = s.post('https://httpbin.org/post', {1:1, 2:2})
+        r = s.post('https://httpbin.org/post', data={1:1, 2:2})
         pprint.pprint(r.to_json(), indent=4)
         s.proxy.terminate()
         self.assertEqual(r.status, 200)
@@ -139,7 +139,7 @@ class TestSession(unittest.TestCase):
             data={ 'id': 100,'add': 'action','text': 2})
         self.assertEqual(None, r0)        
 
-        r1 = s.post_onion('https://httpbin.org/post', {1:1, 2:2})
+        r1 = s.post_onion('https://httpbin.org/post', data={1:1, 2:2})
         self.assertEqual(None, r1)
         s.proxy.terminate()
         
@@ -179,7 +179,6 @@ class TestSession(unittest.TestCase):
 
             Test Case 3:  
             Send HEAD to google 
-
 
         '''
         s = Session()
