@@ -1,6 +1,6 @@
 # Sneak
 
-![](https://img.shields.io/badge/version-0.0.1-brightgreen.svg)
+![](https://img.shields.io/badge/version-0.1.1-brightgreen.svg)
 ![](https://img.shields.io/badge/status-develop-ff69b4.svg)
 
 Sneak is a URL transfer tool based on Tor technology.
@@ -11,11 +11,14 @@ Sneak is a URL transfer tool based on Tor technology.
 3. Access dark web handly.
 
 ## Installation
-
-***We are currently developing the package, therefore, you can only install it from testpypi.***  
-
+ 
 ### Install by pypi
 For people who just want to use the package, just install the package through pip install command.
+```bash
+$ pip install sneak
+```
+
+Install the package from test.pypi is also allowed.  
 ```bash
 $ pip install --index-url https://test.pypi.org/simple/ sneak
 ```
