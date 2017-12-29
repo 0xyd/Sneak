@@ -707,24 +707,25 @@ class Session(TorSessionMixin):
         '''
         return 
 
-    def delete(self, url):
-        '''
-        #### delete()
-        ***description***
-            Send a delete request.
-        ***params***  
-            url: < string >  
-            Where the delete request will be send to.
-        '''
-        pass
+    # 2017 Y.D.: Haven't be implemented yet.
+    # def delete(self, url):
+    #     '''
+    #     #### delete()
+    #     ***description***
+    #         Send a delete request.
+    #     ***params***  
+    #         url: < string >  
+    #         Where the delete request will be send to.
+    #     '''
+    #     pass
 
-    def delete_onion(self, onion_url):
-        '''
-        #### delete_onion()
-        ***description***
-            Send a delete request on an onion site.
-        '''
-        pass
+    # def delete_onion(self, onion_url):
+    #     '''
+    #     #### delete_onion()
+    #     ***description***
+    #         Send a delete request on an onion site.
+    #     '''
+    #     pass
 
     # 20171203 Y.D.: Move to tor.py
     # def terminate(self):
