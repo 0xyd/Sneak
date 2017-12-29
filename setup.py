@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name='sneak', 
-	version='0.1.1',
+	version='0.1.2',
 	description='Sneak is a URL transfer tool based on Tor technology.', 
 	url='https://github.com/yudazilian/Sneak',
 	author='yd',
