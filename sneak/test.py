@@ -10,9 +10,8 @@ import requests
 import lxml.html
 from lxml import cssselect
 
-from test_data import test_settings
 from sneak.Http import Session
-
+from test_data  import test_settings
 
 
 class TestSession(unittest.TestCase):
@@ -21,8 +20,12 @@ class TestSession(unittest.TestCase):
         s = Session()
         r = s.get('https://httpbin.org/ip')
         pprint.pprint(r.to_json(), indent=4)
-        s.proxy.terminate()
         self.assertEqual(r.status, 200)
+        
+        r1 = s.get('https://httpbin.orgtttt/ip')
+        self.assertEqual(r1, None)
+
+        s.proxy.terminate()
         
 
     def test_get_onion(self):
@@ -34,14 +37,22 @@ class TestSession(unittest.TestCase):
 
         r = s.get_onion('http://money4uitwxrt2us.onion/')
         pprint.pprint(r.to_json(), indent=4)
-        s.proxy.terminate()
         self.assertEqual(r.status, 200)
+
+        r = s.get_onion('http://money4uitwxrt2usNeverExist.onion/')
+        self.assertEqual(r, None)        
+
+        r = s.get_onion('https://www.google.com/')
+        self.assertEqual(None, r)
+
+        s.proxy.terminate()
         
 
     def test_renew_identity(self):
         '''test_renew_identity
         *description*
-            Test if the renew_identity function works well or not.
+            Test if the renew_identity function works well or not.  
+            
         '''
         s = Session()
         s.cUrl.setopt(pycurl.VERBOSE, True)
@@ -80,7 +91,7 @@ class TestSession(unittest.TestCase):
         # TestCase 1.
         s = Session(exit_country_code='tw')
         s.cUrl.setopt(pycurl.VERBOSE, True)
-        r = s.post('https://httpbin.org/post', {1:1, 2:2})
+        r = s.post('https://httpbin.org/post', data={1:1, 2:2})
         pprint.pprint(r.to_json(), indent=4)
         s.proxy.terminate()
         self.assertEqual(r.status, 200)
@@ -118,14 +129,20 @@ class TestSession(unittest.TestCase):
         s.cUrl.setopt(pycurl.VERBOSE, True)
         r = s.post_onion(
             'http://pms5n4czsmblkcjl.onion/cart.php', 
-            data={
-                'id': 100,
-                'add': 'action',
-                'text': 2,
-            })
+            data={ 'id': 100,'add': 'action','text': 2})
+
         pprint.pprint(r.to_json(), indent=4)
-        s.proxy.terminate()
         self.assertEqual(r.status, 200)
+
+        r0 = s.post_onion(
+            'http://pms5n4czsmblkcjlneverexist.onion/cart.php', 
+            data={ 'id': 100,'add': 'action','text': 2})
+        self.assertEqual(None, r0)        
+
+        r1 = s.post_onion('https://httpbin.org/post', data={1:1, 2:2})
+        self.assertEqual(None, r1)
+        s.proxy.terminate()
+        
 
     # 20171220 Y.D.: [HOTFIX] HEAD not works well...
     def test_head(self):
@@ -136,24 +153,32 @@ class TestSession(unittest.TestCase):
         '''
         s = Session()
         s.cUrl.setopt(pycurl.VERBOSE, True)
-        r0   = s.head('https://www.google.com')
-        req0 = requests.head('https://www.google.com')
+        # r0   = s.head('https://www.google.com')
+        # req0 = requests.head('https://www.google.com')
         r1   = s.head('https://twitter.com/?lang=en')
         req1 = requests.head('https://twitter.com/?lang=en')
         s.proxy.terminate()
-        self.assertEqual(r0.status, req0.status_code)
-        self.assertEqual(r0.body  , req0.text)
+
+        r2 = s.head('https://twitterneverexist.com/?lang=en')
+
+        # self.assertEqual(r0.status, req0.status_code)
+        # self.assertEqual(r0.body  , req0.text)
         self.assertEqual(r1.status, req1.status_code)
         self.assertEqual(r1.body  , req1.text)
+        self.assertEqual(r2, None)
         
     def test_head_onion(self):
         '''test_head
         *description*
             Test the HEAD method is workable on hidden services or not.
-            Test Case 1: 
-            HEAD the [Green World](http://greenroxwc5po3ab.onion/)
-            Test Case 2:
-            HEAD the [Lambda](http://ze2djl7sv6m7eqzi.onion/)
+            Test Case 1:  
+            HEAD the [Green World](http://greenroxwc5po3ab.onion/).  
+
+            Test Case 2:  
+            HEAD the [Lambda](http://ze2djl7sv6m7eqzi.onion/)  
+
+            Test Case 3:  
+            Send HEAD to google 
 
         '''
         s = Session()
@@ -171,6 +196,13 @@ class TestSession(unittest.TestCase):
         req1 = requests.head('http://ze2djl7sv6m7eqzi.onion/', proxies=proxies)
         self.assertEqual(r1.status, req1.status_code)
         self.assertEqual(r1.body,   req1.text)
+
+        r2 = s.head_onion('https://www.google.com')
+        self.assertEqual(None, r2)
+
+        r3 = s.head_onion('http://ze2djl7sv6m7eqzineverexist.onion/')
+        self.assertEqual(None, r3)
+
         s.proxy.terminate()
 
     def test_cookie(self):
