@@ -177,7 +177,7 @@ class TorSessionMixin(Proxy):
         self, socks_port=9050, control_port=9051, 
         proxy_host='localhost', exit_country_code='us', tor_path='tor_0'):
         '''
-        #### set_proxy
+        #### run_proxy()
         ***description***  
             Set a proxy with specific setting.
 
@@ -491,7 +491,10 @@ class Session(TorSessionMixin):
             r = Response()
             b = BytesIO()
             self.cUrl.setopt(pycurl.URL, url)
+            self.cUrl.setopt(pycurl.CUSTOMREQUEST, 'GET')
+            self.cUrl.setopt(pycurl.HTTPGET, 1)
             self.cUrl.setopt(pycurl.WRITEDATA, b)
+            self.cUrl.setopt(pycurl.NOBODY, False)
 
             try:
                 self.cUrl.perform()
@@ -564,10 +567,13 @@ class Session(TorSessionMixin):
             b = BytesIO()
             post_data = []
             post_data.extend(trans_dict_to_tuple(data))
+            self.cUrl.setopt(pycurl.CUSTOMREQUEST, 'POST')
             self.cUrl.setopt(pycurl.URL, url)
             self.cUrl.setopt(pycurl.WRITEDATA, b)
             self.cUrl.setopt(pycurl.POST, 1)
             self.cUrl.setopt(pycurl.HTTPPOST, post_data)
+            self.cUrl.setopt(pycurl.NOBODY, False)
+
             try:
                 self.cUrl.perform()
                 r.set_headers_and_charset(self.res_headers)
@@ -627,7 +633,6 @@ class Session(TorSessionMixin):
             Otherwise, the None will be return. 
 
         '''
-        # Simulate Tor's user agent
         return
 
     def _head(fn):
@@ -659,6 +664,7 @@ class Session(TorSessionMixin):
                 r.set_headers_and_charset(self.res_headers)
                 r.set_value(self.cUrl)
                 r.body = ''
+                # self.cUrl.reset()
                 return r
             except Exception as e:
                 print(e)
@@ -684,6 +690,7 @@ class Session(TorSessionMixin):
             Otherwise, the None will be return. 
 
         '''
+
         return
 
     @_is_onion('HEAD')
