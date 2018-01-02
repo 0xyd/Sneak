@@ -1,7 +1,8 @@
 # Sneak
 
-![](https://img.shields.io/badge/version-0.1.1-brightgreen.svg)
+![](https://img.shields.io/badge/version-0.1.3-brightgreen.svg)
 ![](https://img.shields.io/badge/status-develop-ff69b4.svg)
+![](https://img.shields.io/badge/Apache-2.0-orange.svg)
 
 Sneak is a URL transfer tool based on Tor technology.
 
@@ -48,6 +49,11 @@ package requests, lxml and cssselect are used to test the if sneak works correct
 ```bash
 $ pip uninstall sneak
 ```
+
+## How to use?
+
+Please read the example code in our [wiki](https://github.com/yudazilian/Sneak/wiki/Examples). :)
+
 
 ## Contribution
 
