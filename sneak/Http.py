@@ -208,14 +208,17 @@ class TorSessionMixin(Proxy):
         self.proxy.run()
         self.proxy.auth_controller()
 
-    def renew_identity(self):
+    def renew_identity(self, clear_headers=True):
         '''
         #### renew_identity
         ***description***  
             Renew the identity to change tor's route.  
         '''
         self.proxy.renew_identity()
-        self._init_cUrl()
+        if clear_headers:
+            self._init_cUrl()
+        else:
+            self._init_cUrl(headers=self.headers, user_agent=self.user_agent)
         
 class Session(TorSessionMixin):
     '''
@@ -269,16 +272,31 @@ class Session(TorSessionMixin):
             
         redirect: < bool >  
         Allow the redirect or not.        
-    
+
+        headers: < dict >  
+        The headers the user want to set in the session.  
+        The default value {}, which means pycurl will use curl's value as default.  
+        
+        user_agent: < str >  
+        The agent the user want to prentent. Without setting, the default is a *curl*.  
+
+        keep_alive: < bool >  
+        Keep the connection alive after the transmission is succeed.  
+
+
     '''
     def __init__(
         self, socks_port=9050, control_port=9051, proxy_host='localhost', exit_country_code='us', 
         tor_path='tor_0', cookie='', cookie_path='', keep_alive=False, redirect=False,
-        ssl_version='tls_1_2' , ssl_verifypeer=True, ssl_verifyhost=True):
+        headers={}, user_agent='', ssl_version='tls_1_2', ssl_verifypeer=True, ssl_verifyhost=True):
         self.cUrl = None
         self.cookie   = cookie 
         self.redirect = redirect 
         self.keep_alive  = keep_alive
+        # 20170118 Y.D.: Set user agent
+        self.user_agent  = user_agent
+        # 20170118 Y.D.: Set headers
+        self.headers = {}
         self.res_headers = {}
         self.cookie_path = cookie_path
         self.ssl_version = ssl_version
@@ -286,9 +304,34 @@ class Session(TorSessionMixin):
         self.ssl_verifyhost = ssl_verifyhost
 
         self.run_proxy(socks_port, control_port, proxy_host, exit_country_code, tor_path)
-        self._init_cUrl()
+        self._init_cUrl(headers=headers, user_agent=user_agent)
 
-    def _init_cUrl(self):
+    def set_headers(self, headers={}, user_agent='', keep_alive=False):
+        '''
+        #### set_headers()
+        ***description***  
+            set_headers function is used to set session's headers and user agent.  
+
+        ***params***  
+            headers: < dict >  
+            Headers that want to be set in session.  
+
+            user_agent: < str >  
+            The agent you want to pretent to be.  
+        '''
+        if keep_alive:
+            headers.update({'Connection': 'keep_alive'})
+        self.headers = headers
+
+        headers = list('%s: %s' % (key, value) for key, value in headers.items())
+        self.cUrl.setopt(pycurl.HTTPHEADER, headers)
+
+        if len(user_agent) == 0:
+            pass
+        else:
+            self.cUrl.setopt(pycurl.USERAGENT, user_agent) 
+
+    def _init_cUrl(self, headers={}, user_agent=''):
         '''
         #### _init_cUrl()
         ***description***  
@@ -301,17 +344,17 @@ class Session(TorSessionMixin):
         self.cUrl.setopt(pycurl.HEADER, True)
         self.cUrl.setopt(pycurl.HEADERFUNCTION, self._parse_header)
 
-        # 20171228 Y.D.: Enable Keep-alive connection
-        headers = [
-            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language: en-US,en;q=0.5',
-            'Accept-Encoding: gzip, deflate'
-        ]
-        if self.keep_alive:
-            headers.append('Connection: keep-alive')
+        # 20180117 Y.D.: 
+        self.set_headers(headers, user_agent, self.keep_alive)
 
-        self.cUrl.setopt(pycurl.HTTPHEADER, headers)
-
+        # headers = [
+        #     'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        #     'Accept-Language: en-US,en;q=0.5',
+        #     'Accept-Encoding: gzip, deflate'
+        # ]
+        # if self.keep_alive:
+        #     headers.append('Connection: keep-alive')
+        # self.cUrl.setopt(pycurl.HTTPHEADER, headers)
 
         # 20171115 Y.D.: ADD more different options.
         # Set up the ssl settings
@@ -398,9 +441,9 @@ class Session(TorSessionMixin):
             return set_proxy
         return decorator
 
-    def _set_agent(method, removed_dns):
+    def _set_headers(method, removed_dns):
         '''
-        #### _set_agent()
+        #### _set_headers()
         ***description***
             Set the user-agent.  
 
@@ -415,27 +458,15 @@ class Session(TorSessionMixin):
 
         '''
         def decorator(fn):
-            def set_agent(self, url, **kwargs):
-                # Sneak prentent itself as a browser in GET and POST.
-                if (method == 'GET' or method == 'POST') and removed_dns:
-                    self.cUrl.setopt(pycurl.USERAGENT, 
-                        'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0')
-                elif method == 'GET' or method == 'POST':
-                    self.cUrl.setopt(pycurl.USERAGENT, 
-                        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, \
-                        like Gecko) Chrome/62.0.3202.94 Safari/537.36')
-                # Sneak run as a curl agent when do HEAD operation
-                elif method == 'HEAD':
-                    user_agent = CURL_RE.search(pycurl.version).group('ver')
-                    self.cUrl.setopt(pycurl.USERAGENT, user_agent)
-
+            def set_headers(self, url, headers={}, user_agent='', **kwargs):
+                self.set_headers(headers, user_agent)
                 if method == 'GET' or method == 'HEAD':
                     return fn(self, url)
                 elif method == 'POST':
                     for k, v in kwargs.items():
                         if k == 'data':
                             return fn(self, url, data=v)
-            return set_agent
+            return set_headers
         return decorator
 
     def _is_onion(method):
@@ -507,10 +538,10 @@ class Session(TorSessionMixin):
                 return 
         return get
 
-    @_set_agent('GET', False)
+    @_set_headers('GET', False)
     @_set_proxy('GET', False)
     @_get
-    def get(self, url):
+    def get(self):
         '''
         #### get()
         ***description***
@@ -520,15 +551,18 @@ class Session(TorSessionMixin):
             url: < string >
             The host's url which you want to get.  
 
+            headers: < dict >
+            Headers information.
+
         ***return***  
-            r: <Response object>
+            r: < Response object >
             The response object will be return if GET can work well.  
             Otherwise, the None will be return.  
         '''
         return 
 
     @_is_onion('GET')
-    @_set_agent('GET', True)
+    @_set_headers('GET', True)
     @_set_proxy('GET', True)
     @_get
     def get_onion(self, onion_url):
@@ -586,7 +620,7 @@ class Session(TorSessionMixin):
             
         return post
 
-    @_set_agent('POST', False)
+    @_set_headers('POST', False)
     @_set_proxy('POST', False)
     @_post
     def post(self, url, data={}):
@@ -611,7 +645,7 @@ class Session(TorSessionMixin):
         return 
 
     @_is_onion('POST')
-    @_set_agent('POST', True)
+    @_set_headers('POST', True)
     @_set_proxy('POST', True)
     @_post
     def post_onion(self, onion_url, data={}):
@@ -671,7 +705,7 @@ class Session(TorSessionMixin):
                 return 
         return head
 
-    @_set_agent('HEAD', False)
+    @_set_headers('HEAD', False)
     @_set_proxy('HEAD', False)
     @_head
     def head(self, url):
@@ -694,7 +728,7 @@ class Session(TorSessionMixin):
         return
 
     @_is_onion('HEAD')
-    @_set_agent('HEAD', True)
+    @_set_headers('HEAD', True)
     @_set_proxy('HEAD', True)
     @_head
     def head_onion(self, onion_url):
