@@ -10,7 +10,7 @@ import requests
 import lxml.html
 from lxml import cssselect
 
-from sneak.Http import Session
+from sneak.Http import Session, default_curl
 from test_data  import test_settings
 
 
@@ -22,9 +22,16 @@ class TestSession(unittest.TestCase):
         pprint.pprint(r.to_json(), indent=4)
         r1 = s.get('https://httpbin.orgtttt/ip')
 
+        # 20170211 Y.D. Test if the user agent works or not
+        r2 = s.get('https://httpbin.org/ip', user_agent=default_curl)
+        user_agent = s.req_headers['user-agent']
+
         s.proxy.terminate()
         self.assertEqual(r.status, 200)
         self.assertEqual(r1, None)
+        self.assertEqual(r2.status, 200)
+        self.assertEqual(user_agent, default_curl)
+
 
     def test_get_onion(self):
         s = Session()
@@ -43,7 +50,7 @@ class TestSession(unittest.TestCase):
     def test_set_headers(self):
 
         headers = {
-            'Accept': '*/*;',
+            'Accept': '*/*',
             'Accept-Language': '',
             'Accept-Encoding': ''
         }
@@ -53,10 +60,16 @@ class TestSession(unittest.TestCase):
         # s.cUrl.setopt(pycurl.VERBOSE, True)
 
         # Test Case 1. Set two different settings with different APIs.
-        r0 = s.get('https://httpbin.org/anything', headers=headers, user_agent=user_agent)    
+        r0 = s.get('https://httpbin.org/anything', headers=headers, user_agent=user_agent)
+
+        # 20170211 Y.D. Add a new test to make sure request headers setting is correct
+        q0 = s.req_headers 
 
         s.set_headers(headers=headers, user_agent=user_agent)
         r1 = s.get('https://httpbin.org/anything')
+
+        # 20170211 Y.D. Add a new test to make sure request headers setting is correct
+        q1 = s.req_headers 
 
         r0_body = json.loads(r0.body)
         r1_body = json.loads(r1.body)
@@ -77,6 +90,11 @@ class TestSession(unittest.TestCase):
         pprint.pprint(r3_body['headers'], indent=4)
 
         s.proxy.terminate()
+
+        # 20170211 Y.D. New Test for request headers
+        self.assertEqual(q0, headers)
+        self.assertEqual(q1, headers)
+
 
         self.assertEqual(r0_body['headers'], r1_body['headers'])
         self.assertEqual(r1_body['headers'], r2_body['headers'])

@@ -20,6 +20,9 @@ ONION_RE    = re.compile(r'https?://[a-zA-Z0-9\.]+.onion')
 CHARSET_RE  = re.compile(r'charset=(?P<encoding>.*)')
 HASHCODE_RE = re.compile(r'(?P<code>16:\w{20,})\n?')
 
+# 20170211 Y.D.: 
+default_curl = re.search(r'curl\/\d+\.\d+\.\d+', pycurl.version)
+default_curl = default_curl.group()
 
 def trans_dict_to_tuple(dict_data):
     '''
@@ -218,7 +221,7 @@ class TorSessionMixin(Proxy):
         if clear_headers:
             self._init_cUrl()
         else:
-            self._init_cUrl(headers=self.headers, user_agent=self.user_agent)
+            self._init_cUrl(headers=self.req_headers, user_agent=self.user_agent)
         
 class Session(TorSessionMixin):
     '''
@@ -274,7 +277,7 @@ class Session(TorSessionMixin):
         Allow the redirect or not.        
 
         headers: < dict >  
-        The headers the user want to set in the session.  
+        The request headers the user want to set in the session.  
         The default value {}, which means pycurl will use curl's value as default.  
         
         user_agent: < str >  
@@ -296,7 +299,7 @@ class Session(TorSessionMixin):
         # 20170118 Y.D.: Set user agent
         self.user_agent  = user_agent
         # 20170118 Y.D.: Set headers
-        self.headers = {}
+        self.req_headers = {}
         self.res_headers = {}
         self.cookie_path = cookie_path
         self.ssl_version = ssl_version
@@ -321,14 +324,19 @@ class Session(TorSessionMixin):
         '''
         if keep_alive:
             headers.update({'Connection': 'keep_alive'})
-        self.headers = headers
+        self.req_headers = headers
 
         headers = list('%s: %s' % (key, value) for key, value in headers.items())
         self.cUrl.setopt(pycurl.HTTPHEADER, headers)
 
+        # 20180211 Y.D.:
         if len(user_agent) == 0:
-            pass
+            self.req_headers.update({'user-agent': default_curl})
+            # pass
         else:
+            # 20170211 Y.D.: 
+            self.req_headers.update({'user-agent': user_agent})
+
             self.cUrl.setopt(pycurl.USERAGENT, user_agent) 
 
     def _init_cUrl(self, headers={}, user_agent=''):
@@ -344,7 +352,6 @@ class Session(TorSessionMixin):
         self.cUrl.setopt(pycurl.HEADER, True)
         self.cUrl.setopt(pycurl.HEADERFUNCTION, self._parse_header)
 
-        # 20180117 Y.D.: 
         self.set_headers(headers, user_agent, self.keep_alive)
 
         # headers = [
@@ -459,7 +466,12 @@ class Session(TorSessionMixin):
         '''
         def decorator(fn):
             def set_headers(self, url, headers={}, user_agent='', **kwargs):
-                self.set_headers(headers, user_agent)
+
+                # 20170211 Y.D. If headers does not setup specifically. do not start set_headers()
+                if headers != {}:
+                    self.set_headers(headers, user_agent)
+
+
                 if method == 'GET' or method == 'HEAD':
                     return fn(self, url)
                 elif method == 'POST':
