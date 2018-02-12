@@ -13,7 +13,7 @@ from stem import Signal
 from stem.control import Controller
 from stem.util import system, term
 
-from sneak.Tor import Proxy
+from sneak.Tor import Proxy, display_msg
 
 CURL_RE     = re.compile(r'lib(?P<ver>curl/\d+\.\d+.\d+)')
 ONION_RE    = re.compile(r'https?://[a-zA-Z0-9\.]+.onion')
@@ -154,11 +154,13 @@ class Response():
         body = body[self.header_size:]
         try:
             if 'content-encoding' in self.headers:
-                print('start decompressing: %s' % self.headers['content-encoding'])
+                line = 'start decompressing: %s' % self.headers['content-encoding']
+                line = term.format(line, term.Color.ORANGE)
+                display_msg(line, 'Decode')
                 body = zlib.decompress(body, zlib.MAX_WBITS|16)
         except Exception as e:
-            print(e)
-            pass
+            e = term.format(e, term.Color.RED)
+            display_msg(e, 'Error')
         self.body = body.decode(self.charset, errors='replace')
 
     def to_json(self):
@@ -296,9 +298,7 @@ class Session(TorSessionMixin):
         self.cookie   = cookie 
         self.redirect = redirect 
         self.keep_alive  = keep_alive
-        # 20170118 Y.D.: Set user agent
         self.user_agent  = user_agent
-        # 20170118 Y.D.: Set headers
         self.req_headers = {}
         self.res_headers = {}
         self.cookie_path = cookie_path
@@ -321,6 +321,10 @@ class Session(TorSessionMixin):
 
             user_agent: < str >  
             The agent you want to pretent to be.  
+
+            keep_alive: < bool >  
+            Keep the connection alive or not.  
+            The default setting is False to make sure not use the same exit node all the time  
         '''
         if keep_alive:
             headers.update({'Connection': 'keep_alive'})
@@ -332,7 +336,6 @@ class Session(TorSessionMixin):
         # 20180211 Y.D.:
         if len(user_agent) == 0:
             self.req_headers.update({'user-agent': default_curl})
-            # pass
         else:
             # 20170211 Y.D.: 
             self.req_headers.update({'user-agent': user_agent})
@@ -354,16 +357,6 @@ class Session(TorSessionMixin):
 
         self.set_headers(headers, user_agent, self.keep_alive)
 
-        # headers = [
-        #     'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        #     'Accept-Language: en-US,en;q=0.5',
-        #     'Accept-Encoding: gzip, deflate'
-        # ]
-        # if self.keep_alive:
-        #     headers.append('Connection: keep-alive')
-        # self.cUrl.setopt(pycurl.HTTPHEADER, headers)
-
-        # 20171115 Y.D.: ADD more different options.
         # Set up the ssl settings
         if self.ssl_version == 'tls_1_2':
             self.cUrl.setopt(pycurl.SSL_OPTIONS, pycurl.SSLVERSION_TLSv1_2) 
@@ -421,7 +414,7 @@ class Session(TorSessionMixin):
             the hidden services, however, has to be resolved by socks server locally.
 
         ***params***  
-            method: < string >
+            method: < string >  
             The names of Http method such as GET, POST, HEAD.  
 
             removed_dns: < bool >  
@@ -471,7 +464,6 @@ class Session(TorSessionMixin):
                 if headers != {}:
                     self.set_headers(headers, user_agent)
 
-
                 if method == 'GET' or method == 'HEAD':
                     return fn(self, url)
                 elif method == 'POST':
@@ -499,7 +491,10 @@ class Session(TorSessionMixin):
                 if ONION_RE.search(url):
                     is_onion_service = True
                 if is_onion_service != True:
-                    print('The URL is not an onion. Please use get() instead')
+                    line = term.format(
+                        'The URL is not an onion. Please use get() instead', 
+                            term.Color.RED)
+                    display_msg(line, 'Error')
                     return None
 
                 if method == 'GET' or method == 'HEAD':
@@ -546,7 +541,8 @@ class Session(TorSessionMixin):
                 r.decode_body(b.getvalue())
                 return r
             except Exception as e:
-                print(e)
+                e = term.format(e, term.Color.RED)
+                display_msg(e, 'Error')
                 return 
         return get
 
@@ -560,14 +556,17 @@ class Session(TorSessionMixin):
             A GET HTTP method for non-hidden services.  
 
         ***params***  
-            url: < string >
+            url: < string >  
             The host's url which you want to get.  
 
             headers: < dict >
-            Headers information.
+            Headers information.  
+
+            user_agent: < string >  
+            Set up the User Agent.  
 
         ***return***  
-            r: < Response object >
+            r: < Response object >  
             The response object will be return if GET can work well.  
             Otherwise, the None will be return.  
         '''
@@ -588,10 +587,16 @@ class Session(TorSessionMixin):
             An url of the hidden service. 
             The end of domain should be '.onion'.  
 
+            headers: < dict >
+            Headers information.  
+
+            user_agent: < string >  
+            Set up the User Agent.  
+
         ***return***  
             r: <Response object>
             The response object will be return if GET can work well.  
-            Otherwise, the None will be return.
+            Otherwise, the None will be return.  
         '''
         return 
 
@@ -603,10 +608,10 @@ class Session(TorSessionMixin):
 
         ***params***  
             url: < string >  
-            Post a certain data on an url.
+            Post a certain data on an url.  
 
             data: < dict >  
-            The data that we want to send to the host. 
+            The data that we want to send to the host.  
         '''
         def post(self, url, data):
             r = Response()
@@ -627,7 +632,8 @@ class Session(TorSessionMixin):
                 r.decode_body(b.getvalue())
                 return r
             except Exception as e:
-                print(e)
+                e = term.format(e, term.Color.RED)
+                display_msg(e, 'Error')
                 return 
             
         return post
@@ -647,6 +653,12 @@ class Session(TorSessionMixin):
 
             data: < dict >  
             The data which is used to post form. 
+
+            headers: < dict >  
+            Headers information.  
+
+            user_agent: < string >  
+            Set up the User Agent.  
 
         ***return***  
             r: <Response object>
@@ -671,7 +683,13 @@ class Session(TorSessionMixin):
             The hidden service's url to do HTTP POST method.
 
             data: < dict >  
-            The data which is used to post form.
+            The data which is used to post form.  
+
+            headers: < dict >
+            Headers information.  
+
+            user_agent: < string >  
+            Set up the User Agent.  
 
         ***return***  
             r: <Response object>
@@ -713,7 +731,8 @@ class Session(TorSessionMixin):
                 # self.cUrl.reset()
                 return r
             except Exception as e:
-                print(e)
+                e = term.format(e, term.Color.RED)
+                display_msg(e, 'Error')
                 return 
         return head
 
@@ -728,7 +747,13 @@ class Session(TorSessionMixin):
 
         ***params***  
             url: < string >
-            The host's url which you want to head.   
+            The host's url which you want to head.  
+
+            headers: < dict >
+            Headers information.  
+
+            user_agent: < string >  
+            Set up the User Agent.   
 
         ***return***  
             r: <Response object>
