@@ -155,12 +155,14 @@ class Response():
         try:
             if 'content-encoding' in self.headers:
                 line = 'start decompressing: %s' % self.headers['content-encoding']
-                line = term.format(line, term.Color.ORANGE)
-                display_msg(line, 'Decode')
+                line = term.format(line,     term.Color.ORANGE)
+                flag = term.format('Decode', term.Color.ORANGE)
+                display_msg(line, flag)
                 body = zlib.decompress(body, zlib.MAX_WBITS|16)
         except Exception as e:
-            e = term.format(e, term.Color.RED)
-            display_msg(e, 'Error')
+            e = term.format(str(e), term.Color.RED)
+            flag = term.format('Error', term.Color.RED)
+            display_msg(e, flag)
         self.body = body.decode(self.charset, errors='replace')
 
     def to_json(self):
@@ -494,7 +496,8 @@ class Session(TorSessionMixin):
                     line = term.format(
                         'The URL is not an onion. Please use get() instead', 
                             term.Color.RED)
-                    display_msg(line, 'Error')
+                    flag = term.format('Error', term.Color.RED)
+                    display_msg(line, flag)
                     return None
 
                 if method == 'GET' or method == 'HEAD':
@@ -541,8 +544,9 @@ class Session(TorSessionMixin):
                 r.decode_body(b.getvalue())
                 return r
             except Exception as e:
-                e = term.format(e, term.Color.RED)
-                display_msg(e, 'Error')
+                e = term.format(str(e), term.Color.RED)
+                flag = term.format('Error', term.Color.RED)
+                display_msg(e, flag)
                 return 
         return get
 
@@ -632,8 +636,9 @@ class Session(TorSessionMixin):
                 r.decode_body(b.getvalue())
                 return r
             except Exception as e:
-                e = term.format(e, term.Color.RED)
-                display_msg(e, 'Error')
+                e = term.format(str(e), term.Color.RED)
+                flag = term.format('Error', term.Color.RED)
+                display_msg(e, flag)
                 return 
             
         return post
@@ -731,8 +736,9 @@ class Session(TorSessionMixin):
                 # self.cUrl.reset()
                 return r
             except Exception as e:
-                e = term.format(e, term.Color.RED)
-                display_msg(e, 'Error')
+                e = term.format(str(e), term.Color.RED)
+                flag = term.format('Error', term.Color.RED)
+                display_msg(e, flag)
                 return 
         return head
 
