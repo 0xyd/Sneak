@@ -5,6 +5,8 @@
 '''
 import re
 import zlib
+import time
+import hashlib
 from io import BytesIO
 
 import pycurl
@@ -20,7 +22,7 @@ ONION_RE    = re.compile(r'https?://[a-zA-Z0-9\.]+.onion')
 CHARSET_RE  = re.compile(r'charset=(?P<encoding>.*)')
 HASHCODE_RE = re.compile(r'(?P<code>16:\w{20,})\n?')
 
-# 20170211 Y.D.: 
+# 20180211 Y.D.: 
 default_curl = re.search(r'curl\/\d+\.\d+\.\d+', pycurl.version)
 default_curl = default_curl.group()
 
@@ -225,7 +227,7 @@ class TorSessionMixin(Proxy):
         if clear_headers:
             self._init_cUrl()
         else:
-            self._init_cUrl(headers=self.req_headers, user_agent=self.user_agent)
+            self._init_cUrl(headers=self.req_headers)
         
 class Session(TorSessionMixin):
     '''
@@ -284,23 +286,23 @@ class Session(TorSessionMixin):
         The request headers the user want to set in the session.  
         The default value {}, which means pycurl will use curl's value as default.  
         
-        user_agent: < str >  
-        The agent the user want to prentent. Without setting, the default is a *curl*.  
-
         keep_alive: < bool >  
         Keep the connection alive after the transmission is succeed.  
+
+        name: < string >  
+        The name of session for keep tracking its work.  
 
 
     '''
     def __init__(
         self, socks_port=9050, control_port=9051, proxy_host='localhost', exit_country_code='us', 
         tor_path='tor_0', cookie='', cookie_path='', keep_alive=False, redirect=False,
-        headers={}, user_agent='', ssl_version='tls_1_2', ssl_verifypeer=True, ssl_verifyhost=True):
+        headers={}, ssl_version='tls_1_2', ssl_verifypeer=True, ssl_verifyhost=True,
+        shared_proxy=None, name=''):
         self.cUrl = None
         self.cookie   = cookie 
         self.redirect = redirect 
         self.keep_alive  = keep_alive
-        self.user_agent  = user_agent
         self.req_headers = {}
         self.res_headers = {}
         self.cookie_path = cookie_path
@@ -308,10 +310,23 @@ class Session(TorSessionMixin):
         self.ssl_verifypeer = ssl_verifypeer
         self.ssl_verifyhost = ssl_verifyhost
 
-        self.run_proxy(socks_port, control_port, proxy_host, exit_country_code, tor_path)
-        self._init_cUrl(headers=headers, user_agent=user_agent)
+        # 20170212 Y.D.: Allow more than one session to share the same proxy.
+        if shared_proxy:
+            self.proxy = shared_proxy
+        else:
+            self.run_proxy(socks_port, control_port, proxy_host, exit_country_code, tor_path)
 
-    def set_headers(self, headers={}, user_agent='', keep_alive=False):
+        # 20170213 Y.D.: 
+        if name:
+            self.name = name
+        else:
+            stamp = str(time.time()).encode('utf8')
+            stamp = hashlib.sha256(stamp)
+            self.name = stamp.hexdigest()[:16]
+
+        self._init_cUrl(headers=headers)
+        
+    def set_headers(self, headers={}, keep_alive=False):
         '''
         #### set_headers()
         ***description***  
@@ -321,30 +336,24 @@ class Session(TorSessionMixin):
             headers: < dict >  
             Headers that want to be set in session.  
 
-            user_agent: < str >  
-            The agent you want to pretent to be.  
-
             keep_alive: < bool >  
             Keep the connection alive or not.  
             The default setting is False to make sure not use the same exit node all the time  
         '''
         if keep_alive:
             headers.update({'Connection': 'keep_alive'})
-        self.req_headers = headers
+            # self.req_headers.update({'Connection': 'keep_alive'})
+            
+        
+        # 20180221 Y.D.:
+        _headers = []
+        for key, hdr in headers.items():
+            self.req_headers[key] = hdr
+            _headers.append('{0}: {1}'.format(key, hdr))
+        self.cUrl.setopt(pycurl.HTTPHEADER, _headers)
 
-        headers = list('%s: %s' % (key, value) for key, value in headers.items())
-        self.cUrl.setopt(pycurl.HTTPHEADER, headers)
 
-        # 20180211 Y.D.:
-        if len(user_agent) == 0:
-            self.req_headers.update({'user-agent': default_curl})
-        else:
-            # 20170211 Y.D.: 
-            self.req_headers.update({'user-agent': user_agent})
-
-            self.cUrl.setopt(pycurl.USERAGENT, user_agent) 
-
-    def _init_cUrl(self, headers={}, user_agent=''):
+    def _init_cUrl(self, headers={}):
         '''
         #### _init_cUrl()
         ***description***  
@@ -357,7 +366,10 @@ class Session(TorSessionMixin):
         self.cUrl.setopt(pycurl.HEADER, True)
         self.cUrl.setopt(pycurl.HEADERFUNCTION, self._parse_header)
 
-        self.set_headers(headers, user_agent, self.keep_alive)
+        # 20180221 Y.D.: NEW: Rewrite the logic of setting headers
+        if 'User-Agent' not in headers:
+            headers.update({'User-Agent': default_curl})
+        self.set_headers(headers)
 
         # Set up the ssl settings
         if self.ssl_version == 'tls_1_2':
@@ -394,7 +406,7 @@ class Session(TorSessionMixin):
 
         ***params***    
             header_line: < string >  
-            pycurl reads response's header one line at a time.
+            pycurl reads response's header one line at a time.  
             
         '''
         header_line = header_line.decode('iso-8859-1')
@@ -460,11 +472,12 @@ class Session(TorSessionMixin):
 
         '''
         def decorator(fn):
-            def set_headers(self, url, headers={}, user_agent='', **kwargs):
+            def set_headers(self, url, headers={}, **kwargs):
 
+                # 20170221 Y.D. BUG FIX: user agent cannot set without headers properly.
                 # 20170211 Y.D. If headers does not setup specifically. do not start set_headers()
-                if headers != {}:
-                    self.set_headers(headers, user_agent)
+                if headers != self.req_headers:
+                    self.set_headers(headers)
 
                 if method == 'GET' or method == 'HEAD':
                     return fn(self, url)
@@ -566,9 +579,6 @@ class Session(TorSessionMixin):
             headers: < dict >
             Headers information.  
 
-            user_agent: < string >  
-            Set up the User Agent.  
-
         ***return***  
             r: < Response object >  
             The response object will be return if GET can work well.  
@@ -593,9 +603,6 @@ class Session(TorSessionMixin):
 
             headers: < dict >
             Headers information.  
-
-            user_agent: < string >  
-            Set up the User Agent.  
 
         ***return***  
             r: <Response object>
@@ -662,9 +669,6 @@ class Session(TorSessionMixin):
             headers: < dict >  
             Headers information.  
 
-            user_agent: < string >  
-            Set up the User Agent.  
-
         ***return***  
             r: <Response object>
             The response object will be return if GET can work well.  
@@ -692,9 +696,6 @@ class Session(TorSessionMixin):
 
             headers: < dict >
             Headers information.  
-
-            user_agent: < string >  
-            Set up the User Agent.  
 
         ***return***  
             r: <Response object>
@@ -758,9 +759,6 @@ class Session(TorSessionMixin):
             headers: < dict >
             Headers information.  
 
-            user_agent: < string >  
-            Set up the User Agent.   
-
         ***return***  
             r: <Response object>
             The response object will be return if GET can work well.  
@@ -794,7 +792,7 @@ class Session(TorSessionMixin):
     def delete(self, url):
         '''
         #### delete()
-        ***description***
+        ***description***  
             Send a delete request.
         ***params***  
             url: < string >  
@@ -805,18 +803,220 @@ class Session(TorSessionMixin):
     def delete_onion(self, onion_url):
         '''
         #### delete_onion()
-        ***description***
+        ***description***  
             Send a delete request on an onion site.
         '''
         pass
 
-    # 20171203 Y.D.: Move to tor.py
-    # def terminate(self):
-    #     '''terminate
-    #     ***description***
-    #         End the tor process.
-    #     '''
-    #     self.tor_process.kill()
-    #     pass
+
+from queue import Queue, Empty
+from functools import partial
+from threading import Thread, Event
+from collections import OrderedDict as odict
+
+class HttpWorkerPool():
+
+    def __init__(self, workers, elapsed=.5):
+
+        self.workers = odict()
+        self.threads = []
+        for worker in workers:
+            name = worker.name
+            w = {
+                name : {
+                    'session' : worker,
+                    'prepared': Queue(), # prepared queue to store the working task
+                    'finished': Queue()  # finished queue to store the results of task
+                }
+            }
+            self.workers.update(w)
+
+        self.num_workers = len(workers)
+        self.elapsed = elapsed
+
+        # 20170214 Y.D.:
+        self.lock = Event()
+
+    def _sort_worker_queue(self):
+        '''_sort_worker_queue
+        ***description***  
+            The function is used to sort the workers according to the prepared working queue.  
+
+        '''
+        self.workers = odict(
+            sorted(self.workers.items(), key=lambda x: x[1]['prepared'].qsize()))
+
+    def get_worker_by_index(self, index):
+        worker_list = list(self.workers.items())
+        worker = worker_list[index]
+        name = worker[0]
+        sess = worker[1]['session']
+        return sess
+
+    def get_worker_by_name(self, name):
+        worker = self.workers[name]
+        sess   = worker['session']
+        return sess
+
+    def add_task(self, url, assigned='', method='GET', 
+        headers={}, data={}, is_onion=False):
+        '''   
+        #### add_task()  
+        ***description***  
+            Add the Http task to the workers.  
+        ***params***  
+            url: < string >
+            The host's url which you want to head.  
+
+            assigned: < string >  
+            The session which user want to assign the job.  
+
+            headers: < dict >
+            Headers information.  
+
+            data: < dict >  
+            The data which is used to post form.  
+            
+        '''
+        # The function for wrapper to call.
+        def task_get(session, result_queue, url, headers, is_onion=False):
+            if is_onion:
+                res = session.get_onion(url, headers=headers)
+            else:
+                res = session.get(url, headers=headers)
+            result_queue.put(res)
+
+        def task_post(session, result_queue, url, data, headers, is_onion=False):
+            if is_onion:
+                res = session.post_onion(url, data=data, headers=headers)
+            else:
+                res = session.post(url, data=data, headers=headers)
+            result_queue.put(res)
+
+        def task_head(session, result_queue, url, headers, is_onion=False):
+            if is_onion:
+                res = session.head_onion(url, headers=headers)
+            else:
+                res = session.head(url, headers=headers)
+            result_queue.put(res)
+
+        task = None
+        last_worker = list(self.workers.items())[0][1]
+        if method == 'GET' and len(assigned) == 0:
+            task = partial(
+                task_get, last_worker['session'], last_worker['finished'], 
+                url, headers, is_onion)
+            last_worker['prepared'].put(task)
+        elif method == 'POST' and len(assigned) == 0:
+            task = partial(
+                task_post, last_worker['session'], last_worker['finished'], 
+                url, data, headers, is_onion)
+            last_worker['prepared'].put(task)
+        elif method == 'HEAD' and len(assigned) == 0:
+            task = partial(
+                task_head, last_worker['session'], last_worker['finished'], 
+                url, headers, is_onion)
+            last_worker['prepared'].put(task)
+        elif method == 'GET':
+            task = partial(
+                task_get, 
+                self.workers[assigned]['session'], 
+                self.workers[assigned]['finished'], 
+                url, headers, is_onion)
+            self.workers[assigned]['prepared'].put(task)
+        elif method == 'POST':
+            task = partial(
+                task_post, 
+                self.workers[assigned]['session'], 
+                self.workers[assigned]['finished'], 
+                url, data, headers, is_onion)
+            self.workers[assigned]['prepared'].put(task)
+        elif method == 'HEAD':
+            task = partial(
+                task_head, 
+                self.workers[assigned]['session'], 
+                self.workers[assigned]['finished'], 
+                url, headers, is_onion)
+            self.workers[assigned]['prepared'].put(task)
+
+        self._sort_worker_queue()
+
+
+    def work(self, timeout=60):
+        '''
+        #### work()  
+        ***description***  
+            The workers in the pool start their jobs.  
+
+        ***params***  
+            timeout: < int >  
+            Set up the timeout seconds. Once the time is out, renew the session.  
+
+        '''
+        self.lock.set()
+
+        while True:
+            tasks = []
+            sess_names   = []
+            self.threads = []
+            # Caculate how many workers haven't finished all their tasks
+            for worker in self.workers.items():
+                if worker[1]['prepared'].empty():
+                    pass
+                else:
+                    task = worker[1]['prepared'].get()
+                    tasks.append(task)
+                    sess_names.append(worker[0])
+
+            if len(tasks) == 0:
+                break
+            else:
+                self.threads = [ None ] * len(tasks)
+
+                for i, thread in enumerate(self.threads):
+                    thread = Thread(target=tasks[i])
+                    thread.name = '{}: {}'.format(thread.name, sess_names[i])
+                    thread.start()
+                    self.threads[i] = thread
+
+                for thread in self.threads:
+                    thread.join(timeout)
+                    time.sleep(self.elapsed)
+
+                # Timeout then renew the identity
+                is_identity_renew = False
+                for i, thread in enumerate(self.threads):
+                    if thread.isAlive():
+                        msg  = '{0} does not work in {1} second(s)'\
+                            .format(thread.name, timeout)
+                        msg  = term.format(msg, term.Color.RED) 
+                        flag = term.format('TimeOut', term.Color.RED)
+                        display_msg(msg, flag)
+                        self.lock.clear()
+                        self.get_worker_by_index(i).renew_identity()
+                        self.lock.set()
+                        is_identity_renew = True
+
+                    if is_identity_renew:
+                        break
+
+        # Retrieve working results of workers 
+        results = {}
+        for worker in self.workers.items():
+            name = worker[0]
+            work = worker[1]
+            results[name] = []
+            while True:
+                if work['finished'].empty():
+                    break
+                else:
+                    result = work['finished'].get()
+                    results[name].append(result)
+        return results
+
+
+            
+
+
 
     
