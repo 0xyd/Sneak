@@ -865,7 +865,6 @@ class HttpWorkerPool():
             'session' 's value is Session object.  
             'prepared' 's value is Queue object where the undo tasks are stored.  
             'finished' 's value is Queue object where the results of tasks are store in Queue
-            
         '''
         worker_list = list(self.workers.items())
         worker = worker_list[index]
@@ -878,6 +877,12 @@ class HttpWorkerPool():
         #### get_worker_by_name
         ***description***  
             Get the worker information through the name.  
+        ***return***  
+            sess: < dict >  
+            There are three keys: 'session', 'prepared' and 'finished'.
+            'session' 's value is Session object.  
+            'prepared' 's value is Queue object where the undo tasks are stored.  
+            'finished' 's value is Queue object where the results of tasks are store in Queue
         '''
         worker = self.workers[name]
         sess   = worker['session']
