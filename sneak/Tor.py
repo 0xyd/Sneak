@@ -1,4 +1,5 @@
 import re
+import os
 import sys
 import time
 import random
@@ -12,6 +13,14 @@ from stem.util import system, term
 from stem.control import Controller
 
 HASHCODE_RE = re.compile(r'(?P<code>16:\w{20,})\n?')
+
+# 20180226
+TOR_COUNTRY_CODE = [
+	'us', 'tw', 'jp', 'ru', 
+	'de', 'uk', 'ch', 'se', 
+	'kr', 'ir', 'is', 'ir', 
+	'nl', 'be', 'fr', 'ca'
+]
 
 def print_bootstrap_lines(line):
 	if "Bootstrapped " in line:
@@ -44,7 +53,7 @@ class Proxy():
 
 	def __init__(
 		self, socks_port=9050, control_port=9051, 
-		proxy_host='localhost', exit_country_code='us', tor_path='tor_0'):
+		proxy_host='127.0.0.1', exit_country_code='us', tor_path='tor_0'):
 		'''__init__
 		*description*   
 			Initialise a Proxy server.
@@ -180,6 +189,93 @@ class Proxy():
 		'''
 		self.controller.new_circuit(path=path, purpose=purpose)
 		print(self.controller.get_info('circuit-status'))
+
+# 20180226 Y.D. 
+class ProxyChain():
+
+	def __init__(self, num_proxy=3):
+		
+		self.prepared_proxies = []
+		self.proxies = []
+		socks_port   = 9050
+		control_port = 9051
+
+		tor_num = 0
+		while True:
+			rand_i = random.randint(0, len(TOR_COUNTRY_CODE)-1)
+			code = TOR_COUNTRY_CODE[rand_i]
+			tor_path = 'tor_{}'.format(tor_num)
+
+			# To prevent port collision and lock
+			p = Proxy(
+				socks_port=socks_port, control_port=control_port, 
+				tor_path=tor_path, exit_country_code=code)
+			self.prepared_proxies.append(p)
+			
+			socks_port += 100
+			control_port += 100
+			tor_num += 1
+
+			if tor_num == num_proxy:
+				break
+
+	def write_config(self, 
+		proxychain_config='_proxycluster.config', 
+		proxychain_read_timeout=15000, 
+		proxychain_connect_timeout=8000):
+		self.config = proxychain_config
+		# Note: Proxychains-ng's config is here: /usr/local/etc/proxychains.conf, take it as reference.
+		proxychain_config = open(proxychain_config, 'w')
+		proxychain_config.write('random_chain\n')
+		proxychain_config.write('proxy_dns\n')
+		proxychain_config.write('remote_dns_subnet 224\n')
+		proxychain_config.write('tcp_read_time_out %d \n' % proxychain_read_timeout)
+		proxychain_config.write('tcp_connect_time_out %d \n' % proxychain_connect_timeout)
+
+		# List all tor proxies
+		proxychain_config.write('[ProxyList]\n')
+		for proxy in self.proxies:
+			proxychain_config.write('socks5 %s %d \n' % (proxy.host, proxy.socks_port))
+		
+		proxychain_config.close()
+
+	def run(self):
+
+		restart_proxies = []
+		for i, proxy in enumerate(self.prepared_proxies):
+			try:
+				proxy.run()
+				proxy.auth_controller()
+				self.proxies.append(proxy)
+			except Exception as e:
+				error_msg = \
+					'{}.\nTor Proxy {} does not run successfully. Restart Later.'.format(e, i)
+				error_msg = term.format(error_msg, term.Color.YELLOW)
+				warning_flag = term.format('WARNING', term.Color.YELLOW) 
+				restart_proxies.append({'number': i, 'proxy': self.prepared_proxies[i]})
+				display_msg(error_msg, warning_flag)
+
+		# Restart the proxy which is failed in the first beginning
+		for p in restart_proxies:
+			try:
+				p['proxy'].run()
+				p['proxy'].auth_controller()
+				self.proxies.append(p['proxy'])
+			except Exception as e:
+				error_msg = \
+					'{}.\nTor Proxy {} does not restart successfully. Check your network setting'\
+						.format(e, p['number'])
+				error_msg  = term.format(error_msg, term.Color.RED)
+				error_flag = term.format('FAILED', term.Color.RED)
+				display_msg(error_msg, error_flag)
+
+	def terminate(self):
+		for proxy in self.proxies:
+			proxy.terminate()
+		os.remove(self.config)
+		
+	
+
 
 
 

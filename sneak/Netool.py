@@ -1,6 +1,6 @@
 '''
 	## Netool
-	Netool is used to check the Tor network's status.
+	Netool is the collection of different network utilities.
 '''
 from stem import Signal
 from stem import CircStatus
@@ -9,9 +9,8 @@ from stem.util import system, term
 from stem.control import Controller
 from stem.descriptor.networkstatus import Descriptor
 
-from Tor  import Proxy, display
+from Tor  import Proxy, display_msg
 from Http import Session as HttpSession
-
 
 
 class RouterTool():
@@ -27,21 +26,21 @@ class RouterTool():
 			Check the status of onion relays which are known currently.
 
 		***params***  
-			socks_port: < int >  
+			* socks_port: < int >  
             The port for SOCKS proxy.
 
-            control_port: < int >  
+            * control_port: < int >  
             Tor uses the control port to communicate.
 
-            proxy_host: < string >  
+            * proxy_host: < string >  
             The proxy host's ip address. 
             The default is localhost because most of people run Tor on their local machines. 
             Am I right?
 
-            exit_country_code: < string >  
+            * exit_country_code: < string >  
             Decides where the exit nodes should be.
 
-            tor_path: < string >  
+            * tor_path: < string >  
             The working directory for the tor process.
 
         ***return***  
@@ -101,16 +100,16 @@ class RouterTool():
 
 		for status in proxy.controller.get_network_statuses():
 
-			display(term.format(status.nickname,    term.Color.WHITE), term.format('Nickname',     term.Color.YELLOW))
-			display(term.format(status.fingerprint, term.Color.WHITE), term.format('FingerPrint',  term.Color.YELLOW))
-			display(term.format(status.address,     term.Color.WHITE), term.format('Address',      term.Color.YELLOW))
-			display(term.format(str(status.published), term.Color.WHITE), term.format('Published', term.Color.YELLOW))
-			display(term.format(str(status.or_port),   term.Color.WHITE), term.format('OR Port',   term.Color.YELLOW))
-			display(term.format(str(status.dir_port),  term.Color.WHITE), term.format('DIR Port',  term.Color.YELLOW))
-			display(term.format(str(status.bandwidth), term.Color.WHITE), term.format('Bandwidth', term.Color.YELLOW))
-			display(term.format(str(status.document),  term.Color.WHITE), term.format('Document',  term.Color.YELLOW))
-			display(term.format(', '.join(status.flags), term.Color.WHITE), term.format('Relay Flags', term.Color.YELLOW))
-			display('')
+			display_msg(term.format(status.nickname,    term.Color.WHITE), term.format('Nickname',     term.Color.YELLOW))
+			display_msg(term.format(status.fingerprint, term.Color.WHITE), term.format('FingerPrint',  term.Color.YELLOW))
+			display_msg(term.format(status.address,     term.Color.WHITE), term.format('Address',      term.Color.YELLOW))
+			display_msg(term.format(str(status.published), term.Color.WHITE), term.format('Published', term.Color.YELLOW))
+			display_msg(term.format(str(status.or_port),   term.Color.WHITE), term.format('OR Port',   term.Color.YELLOW))
+			display_msg(term.format(str(status.dir_port),  term.Color.WHITE), term.format('DIR Port',  term.Color.YELLOW))
+			display_msg(term.format(str(status.bandwidth), term.Color.WHITE), term.format('Bandwidth', term.Color.YELLOW))
+			display_msg(term.format(str(status.document),  term.Color.WHITE), term.format('Document',  term.Color.YELLOW))
+			display_msg(term.format(', '.join(status.flags), term.Color.WHITE), term.format('Relay Flags', term.Color.YELLOW))
+			display_msg('')
 
 			router_stat['FingerPrints'].append(status.fingerprint)
 			router_stat['Bandwidths'].append(status.bandwidth)
@@ -183,5 +182,138 @@ class RouterTool():
 	# 	http_session = HttpSession(socks_port=socks_port, control_port=control_port, 
 	# 		proxy_host=proxy_host, exit_country_code=exit_country_code, tor_path=tor_path)
 	# 	pass
+
+
+# 20170224 Y.D.
+import re
+import subprocess
+
+from sneak.Tor import ProxyChain
+
+# ip_re = re.compile(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}')
+
+# 20180227 Y.D.: Wonderful Url Validate in regular expression
+ip_middle_octet = u"(?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5]))"
+ip_last_octet   = u"(?:\.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4]))"
+hostname_regex  = re.compile(
+    u"^"
+    # protocol identifier
+    # u"(?:(?:https?|ftp)://)"
+    # user:pass authentication
+    u"(?:[-a-z\u00a1-\uffff0-9._~%!$&'()*+,;=:]+"
+    u"(?::[-a-z0-9._~%!$&'()*+,;=:]*)?@)?"
+    u"(?:"
+    u"(?P<private_ip>"
+    # IP address exclusion
+    # private & local networks
+    u"(?:(?:10|127)" + ip_middle_octet + u"{2}" + ip_last_octet + u")|"
+    u"(?:(?:169\.254|192\.168)" + ip_middle_octet + ip_last_octet + u")|"
+    u"(?:172\.(?:1[6-9]|2\d|3[0-1])" + ip_middle_octet + ip_last_octet + u"))"
+    u"|"
+    # private & local hosts
+    u"(?P<private_host>"
+    u"(?:localhost))"
+    u"|"
+    # IP address dotted notation octets
+    # excludes loopback network 0.0.0.0
+    # excludes reserved space >= 224.0.0.0
+    # excludes network & broadcast addresses
+    # (first & last IP address of each class)
+    u"(?P<public_ip>"
+    u"(?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])"
+    u"" + ip_middle_octet + u"{2}"
+    u"" + ip_last_octet + u")"
+    u"|"
+    # host name
+    u"(?:(?:[a-z\u00a1-\uffff0-9]-?)*[a-z\u00a1-\uffff0-9]+)"
+    # domain name
+    u"(?:\.(?:[a-z\u00a1-\uffff0-9]-?)*[a-z\u00a1-\uffff0-9]+)*"
+    # TLD identifier
+    u"(?:\.(?:[a-z\u00a1-\uffff]{2,}))"
+    u")"
+    # port number
+    u"(?::\d{2,5})?"
+    # resource path
+    u"(?:/[-a-z\u00a1-\uffff0-9._~%!$&'()*+,;=:@/]*)?"
+    # query string
+    u"(?:\?\S*)?"
+    # fragment
+    u"(?:#\S*)?"
+    u"$",
+    re.UNICODE | re.IGNORECASE
+)
+
+
+class NetMapMixin(ProxyChain):
+
+	def __init__(self, num_proxy=3):
+		super().__init__()
+
+	def start_proxychain(self, 
+		proxychains_config='_proxychains.config', 
+		proxychains_read_timeout=15000, proxychains_connect_timeout=8000):
+		self.run()
+		self.write_config(
+			proxychains_config, proxychains_read_timeout, proxychains_connect_timeout)
+
+class NetMap(NetMapMixin):
+
+	def __init__(self, num_proxy=3,
+		proxychains_config='_proxychains.config', 
+		proxychains_read_timeout=15000, proxychains_connect_timeout=8000):
+		super().__init__()
+		self.start_proxychain(
+			proxychains_config, proxychains_read_timeout, proxychains_connect_timeout)
+		
+	def _parse_scan_result(self, scan_stdout):
+		host_name = None
+		service_ports   = []
+		start_port_info = False
+
+		for line in scan_stdout:
+			line = line.decode('utf-8')
+			if 'Nmap scan report for ' in line:
+				host_name = line[22]
+			elif 'PORT    STATE  SERVICE' in line:
+				start_port_info = True
+			elif start_port_info:
+				line = (l.strip(' |\n') for l in line.split(' '))
+				line = (l for l in list(line) if len(l) > 0)
+				service_ports.append(list(line))
+			elif start_port_info and len(line) <= 1:
+				start_port_info = False
+
+		return { 'host': host_name, 'services': service_ports }
+
+	def scan(self, host, ports=[80, 443], timeout=30):
+
+		ports = (str(p) for p in ports)
+		ports = ','.join(list(ports))
+		cmd = ['proxychains4', '-f', self.config, 'nmap', '-n', '-PS', '-sT', '-p']
+		if hostname_regex.search(host):
+			cmd.extend([ports, host])
+		else:
+			error_flag = term.format('FAILED', term.Color.RED)
+			error_msg  = 'Invalid host name or address: {}'.format(host)
+			error_msg  = term.format(error_msg, term.Color.RED)
+			display_msg(error_msg, error_flag)
+		
+		scan = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+		return self._parse_scan_result(scan.stdout)
+		
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

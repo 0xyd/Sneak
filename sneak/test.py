@@ -13,8 +13,6 @@ from lxml import cssselect
 from test_data import test_settings
 from sneak.Http import Session
 
-
-
 class TestSession(unittest.TestCase):
 
     def test_get(self):
@@ -235,6 +233,82 @@ class TestSession(unittest.TestCase):
         log_status = get_logstatus(r.body)
         self.assertEqual(log_status, 'Logout')
         s.proxy.terminate()
+
+
+from sneak.Tor import Proxy, ProxyChain
+
+class TestProxyChain(unittest.TestCase):
+
+    def test_run(self):
+        # Test Case 1: Avoid proxy collision
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+
+        proxy_chain = ProxyChain()
+        proxy_chain.run()
+
+        p.terminate()
+        proxy_chain.terminate()
+
+    def test_write_config(self):
+        proxy_chain = ProxyChain(num_proxy=10)
+        proxy_chain.run()
+        proxy_chain.write_config(proxychain_config='test_proxychains.config')
+
+        # Test Case 1: Check the number of proxies in config file is 
+        # the same as the number of living proxies
+        start_count_proxy = False
+        proxy_number = 0
+        config_file = open('test_proxychains.config', 'r')
+        for line in config_file.readlines():
+            if '[ProxyList]' in line:
+                start_count_proxy = True
+            elif start_count_proxy:
+                proxy_number +=1
+
+        proxy_chain.terminate()
+        self.assertEqual(proxy_number, len(proxy_chain.proxies))
+
+from sneak.Netool import NetMap
+
+class TestNetMap(unittest.TestCase):
+
+    def test_scan(self):
+        # Test Case 1: Usual domain
+        netmap = NetMap()
+        r = netmap.scan('www.google.com')
+        self.assertEqual(r[0][0], '80/tcp')
+        self.assertEqual(r[0][1], 'open')
+        self.assertEqual(r[0][2], 'http')
+        self.assertEqual(r[1][0], '443/tcp')
+        self.assertEqual(r[1][1], 'open')
+        self.assertEqual(r[1][2], 'https')
+
+        # Test Case 2: Ip address
+        netmap.scan('216.58.222.14')
+        self.assertEqual(r[0][0], '80/tcp')
+        self.assertEqual(r[0][1], 'open')
+        self.assertEqual(r[0][2], 'http')
+        self.assertEqual(r[1][0], '443/tcp')
+        self.assertEqual(r[1][1], 'open')
+        self.assertEqual(r[1][2], 'https')
+
+        # Test Case 3: Onion site
+        netmap.scan('facebookcorewwwi.onion')
+        self.assertEqual(r[0][0], '80/tcp')
+        self.assertEqual(r[0][1], 'open')
+        self.assertEqual(r[0][2], 'http')
+        self.assertEqual(r[1][0], '443/tcp')
+        self.assertEqual(r[1][1], 'open')
+        self.assertEqual(r[1][2], 'https')
+
+        # Test Case 4: Stupid Ip addresses
+        netmap.scan('216.58.222.14.216.58.222.14')
+        netmap.scan('2165822214')
+        netmap.scan('2165.8222.14')
+        netmap.terminate()
+
 
 def main():
     unittest.main()
