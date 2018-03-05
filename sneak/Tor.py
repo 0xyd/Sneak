@@ -4,6 +4,7 @@ import sys
 import time
 import random
 import string
+import hashlib
 import subprocess
 
 from stem import Signal
@@ -22,11 +23,22 @@ TOR_COUNTRY_CODE = [
 	'nl', 'be', 'fr', 'ca'
 ]
 
+# 20180227 Y.D.
+MESSAGE_FLAGS_AND_COLOR = {
+	'FAILED' : term.Color.RED,
+	'ERROR'  : term.Color.RED,
+	'INFO'   : term.Color.CYAN,
+	'UPDATE'  : term.Color.YELLOW,
+	'WARNING' : term.Color.YELLOW,
+	'FINISHED': term.Color.GREEN,
+	'STARTING': term.Color.GREEN,
+	'RELAY_INFO': term.Color.MAGENTA
+}
+
 def print_bootstrap_lines(line):
 	if "Bootstrapped " in line:
-		line = term.format(line, term.Color.GREEN)
-		display_msg(line)
-		# print(term.format(line, term.Color.GREEN))
+		# line = term.format(line, term.Color.GREEN)
+		display_msg(line, 'STARTING')
 
 def seed():
 	'''seed
@@ -38,43 +50,58 @@ def seed():
 	seed  = '-'.join(chars[random.randint(0, len(chars)-1)] for i in range(10))
 	return seed
 
-def display_msg(msg_context, msg_type=None):
+def display_msg(msg, flag=''):
+# def display_msg(msg, flag=None):
 	'''display_msg
 	*description*  
 		Display the processing message of the process.
 	'''
-	if msg_type:
-		message = '[{0}] {1} \n'.format(msg_type, msg_context)
+	if flag:
+		color = MESSAGE_FLAGS_AND_COLOR[flag]
+		flag  = '[{}]'.format(flag)
+		msg   = term.format(msg,  color)
+		flag  = term.format(flag, color)
+		msg   = '{} {}\n'.format(flag, msg)
+		sys.stdout.write(msg)
 	else:
-		message = '{0} \n'.format(msg_context)
-	sys.stdout.write(message)
+		sys.stdout.write(msg+'\n')
+
+	# if flag:
+	# 	message = '[{0}] {1} \n'.format(flag, msg)
+	# else:
+	# 	message = '{0} \n'.format(msg)
+	# sys.stdout.write(message)
 
 class Proxy():
 
 	def __init__(
 		self, socks_port=9050, control_port=9051, 
-		proxy_host='127.0.0.1', exit_country_code='us', tor_path='tor_0'):
+		proxy_host='127.0.0.1', exit_country_code='us', tor_path='tor_0', name=''):
 		'''__init__
-		*description*   
+		***description***   
 			Initialise a Proxy server.
 
-		*params*  
-			socks_port: <int>  
+		***params***  
+			socks_port: < int >  
             The port for SOCKS proxy.
 
-            control_port: <int>  
+            control_port: < int >  
             Tor uses the control port to communicate.
 
-            proxy_host: <string>  
+            proxy_host: < string >  
             The proxy host's ip address. 
             The default is localhost because most of people run Tor on their local machines. 
             Am I right?
 
-            exit_country_code: <string>  
+            exit_country_code: < string >  
             Decides where the exit nodes should be.
 
-			tor_path: <string>  
-            The working directory for the tor process.
+			tor_path: < string >  
+            The working directory for the tor process.  
+			
+			name: < string >
+
+
 		'''
 		self.process  = None
 		self.tor_path = tor_path
@@ -85,25 +112,40 @@ class Proxy():
 		self.control_port = control_port
 		self.exit_country_code = exit_country_code
 
-	def run(self):
-		'''run
-		*description*  
+		# 20180227 Y.D.
+		if name:
+			self.name = name
+		else:
+			timestamp = str(time.time()).encode('utf8')
+			self.name = hashlib.md5(timestamp).hexdigest()[:8]
+
+	def run(self, timeout=60):
+		'''
+		#### run
+		***description***  
 			Run tor as the proxy server.
 		'''
 		# seed = ''.join(self._seed_generator())
 		hashcode = subprocess.check_output(['tor', '--hash-password', seed()])
 		self.hashcode = HASHCODE_RE.search(hashcode.decode('utf-8')).group('code')
-		self.process  = tor_process.launch_tor_with_config(
-			config={
-				'SocksPort': [self.socks_port],
-				'ControlPort': [self.control_port],
-				'HashedControlPassword': self.hashcode,
-				'CookieAuthentication': '1',
-				'DataDirectory': self.tor_path,
-				'ExitNodes': '{%s}' % self.exit_country_code
-			},
-			init_msg_handler=print_bootstrap_lines
-        )
+
+		# 20180227 Y.D. Add Error Handler.
+		try:
+			self.process  = tor_process.launch_tor_with_config(
+				config={
+					'SocksPort': [self.socks_port],
+					'ControlPort': [self.control_port],
+					'HashedControlPassword': self.hashcode,
+					'CookieAuthentication': '1',
+					'DataDirectory': self.tor_path,
+					'ExitNodes': '{%s}' % self.exit_country_code
+				},
+				init_msg_handler=print_bootstrap_lines,
+				timeout=timeout
+			)
+		except Exception as e:
+			e = '{}'.format(e)
+			display_msg(e, 'FAILED')
 
 	def auth_controller(self):
 		'''auth_controller
@@ -127,9 +169,9 @@ class Proxy():
 		'''
 		self.auth_controller()
 		self.controller.signal(Signal.NEWNYM)
-		display_msg('Renewing the identity...',   'Update')
+		display_msg('Renewing the identity...',   'UPDATE')
 		time.sleep(self.controller.get_newnym_wait())
-		display_msg('Identity has been renewed.', 'Finished')
+		display_msg('Identity has been renewed.', 'FINISHED')
 
 	def terminate(self):
 		'''terminate
@@ -139,42 +181,40 @@ class Proxy():
 
 		bytes_read    = self.controller.get_info('traffic/read')
 		bytes_written = self.controller.get_info('traffic/written')
-		start_info    = term.format('Tor is terminating...', term.Color.CYAN)
-		end_info      = term.format('Tor is terminated sucessfully!', term.Color.CYAN)
-		bytes_read    = term.format('Our Relay has read %s bytes'    % bytes_read, term.Color.YELLOW)
-		bytes_written = term.format('Our Relay has written %s bytes' % bytes_written, term.Color.YELLOW)
-		display_msg(start_info, 'Info')
-		display_msg(bytes_read, 'Info')
-		display_msg(bytes_written, 'Info')
-		self.process.kill()
-		display_msg(end_info, 'Info')
+		bytes_read    = 'Our Relay has read %s bytes'    % bytes_read
+		bytes_written = 'Our Relay has written %s bytes' % bytes_written
 
-	def list_circuits(self):
-		'''list_circuits
+		display_msg('Tor is terminating...', 'INFO')
+		display_msg(bytes_read, 'INFO')
+		display_msg(bytes_written, 'INFO')
+		self.process.kill()
+		display_msg('Tor is terminated sucessfully!', 'INFO')
+
+	def get_circuits(self):
+		'''get_circuits
 		*description*
 			List all available circuits.
 
 		'''
-		for circuit in sorted(self.controller.get_circuits()):
-			if circuit.status != CircStatus.BUILT:
-				continue
+		return sorted((self.controller.get_circuits()))
+		# for circuit in sorted(self.controller.get_circuits()):
+		# 	if circuit.status != CircStatus.BUILT:
+		# 		continue
 
-			circuit_meta = 'Circuit %s (%s)' % (circuit.id, circuit.purpose)
-			circuit_meta = term.format(circuit_meta, term.Color.GREEN)
-			display_msg(circuit_meta, 'Info')
-			# print(circuit_meta)
+		# 	circuit_meta = 'Circuit %s (%s)' % (circuit.id, circuit.purpose)
+		# 	circuit_meta = term.format(circuit_meta, term.Color.GREEN)
+		# 	display_msg(circuit_meta, 'INFO')
 
-			for i, entry in enumerate(circuit.path):
-				div = '+' if (i == len(circuit.path)-1) else '|'
-				fingerprint, nickname = entry
-				desciption = self.controller.get_network_status(fingerprint, None)
-				address    = desciption.address if desciption else 'unknown'
-				nickname_and_address = '(%s, %s)' % (nickname, address)
-				nickname_and_address = term.format(nickname_and_address, term.Color.WHITE)
-				div_and_fingerprint  = '%s - %s' % (div, fingerprint)
-				div_and_fingerprint  = term.format(div_and_fingerprint, term.Color.YELLOW)
-				display_msg('%s %s' % (div_and_fingerprint, nickname_and_address))
-				# print('%s %s' % (div_and_fingerprint, nickname_and_address))
+		# 	for i, entry in enumerate(circuit.path):
+		# 		div = '+' if (i == len(circuit.path)-1) else '|'
+		# 		fingerprint, nickname = entry
+		# 		desciption = self.controller.get_network_status(fingerprint, None)
+		# 		address    = desciption.address if desciption else 'unknown'
+		# 		nickname_and_address = '(%s, %s)' % (nickname, address)
+		# 		nickname_and_address = term.format(nickname_and_address, term.Color.WHITE)
+		# 		div_and_fingerprint  = '%s - %s' % (div, fingerprint)
+		# 		div_and_fingerprint  = term.format(div_and_fingerprint, term.Color.YELLOW)
+		# 		display_msg('%s %s' % (div_and_fingerprint, nickname_and_address))
 
 	# 20171225 Y.D. TODO:
 	def customize_circuit(self, path, purpose='general'):
@@ -183,7 +223,7 @@ class Proxy():
 			Build a new circuit.
 
 		*params*
-			path: <list>  
+			path: < list >    
 			
 
 		'''
@@ -219,10 +259,25 @@ class ProxyChain():
 			if tor_num == num_proxy:
 				break
 
+	def is_proxychian_available(self):
+		if len(self.proxies) == 0:
+			error_msg = \
+				'No Proxy is able to be chained. Maybe they do not start successfully.\n'
+			display_msg(error_msg, 'ERROR')
+			# error_msg  = term.format(error_msg, term.Color.RED)
+			# error_flag = term.format('FAILED',  term.Color.RED)
+			return False
+		else:
+			return True
+		
 	def write_config(self, 
 		proxychain_config='_proxycluster.config', 
 		proxychain_read_timeout=15000, 
 		proxychain_connect_timeout=8000):
+
+		if not self.is_proxychian_available():
+			return
+
 		self.config = proxychain_config
 		# Note: Proxychains-ng's config is here: /usr/local/etc/proxychains.conf, take it as reference.
 		proxychain_config = open(proxychain_config, 'w')
@@ -242,32 +297,54 @@ class ProxyChain():
 	def run(self):
 
 		restart_proxies = []
-		for i, proxy in enumerate(self.prepared_proxies):
+
+		while True:
+			proxy = self.prepared_proxies.pop()
 			try:
 				proxy.run()
 				proxy.auth_controller()
 				self.proxies.append(proxy)
 			except Exception as e:
 				error_msg = \
-					'{}.\nTor Proxy {} does not run successfully. Restart Later.'.format(e, i)
-				error_msg = term.format(error_msg, term.Color.YELLOW)
-				warning_flag = term.format('WARNING', term.Color.YELLOW) 
-				restart_proxies.append({'number': i, 'proxy': self.prepared_proxies[i]})
-				display_msg(error_msg, warning_flag)
+					'{}.\nTor Proxy {} does not run successfully. Restart Later.'.format(e, proxy.name)
+				# error_msg    = term.format(error_msg, term.Color.YELLOW)
+				# warning_flag = term.format('WARNING', term.Color.YELLOW)
+				restart_proxies.append(proxy)
+				display_msg(error_msg, 'WARNING')
+
+			if len(self.prepared_proxies) == 0:
+				break
+		# for i, proxy in enumerate(self.prepared_proxies):
+		# 	try:
+		# 		proxy.run()
+		# 		proxy.auth_controller()
+		# 		self.proxies.append(proxy)
+		# 	except Exception as e:
+		# 		error_msg = \
+		# 			'{}.\nTor Proxy {} does not run successfully. Restart Later.'.format(e, i)
+		# 		error_msg = term.format(error_msg, term.Color.YELLOW)
+		# 		warning_flag = term.format('WARNING', term.Color.YELLOW) 
+		# 		restart_proxies.append({'number': i, 'proxy': self.prepared_proxies[i]})
+		# 		display_msg(error_msg, warning_flag)
 
 		# Restart the proxy which is failed in the first beginning
 		for p in restart_proxies:
 			try:
-				p['proxy'].run()
-				p['proxy'].auth_controller()
-				self.proxies.append(p['proxy'])
+				proxy = restart_proxies.pop()
+				proxy.run()
+				proxy.auth_controller()
+				self.proxies.append(proxy)
+				# p['proxy'].run()
+				# p['proxy'].auth_controller()
+				# self.proxies.append(p['proxy'])
 			except Exception as e:
 				error_msg = \
 					'{}.\nTor Proxy {} does not restart successfully. Check your network setting'\
-						.format(e, p['number'])
-				error_msg  = term.format(error_msg, term.Color.RED)
-				error_flag = term.format('FAILED', term.Color.RED)
-				display_msg(error_msg, error_flag)
+						.format(e, p.name)
+				display_msg(error_msg, 'FAILED')
+				# error_msg  = term.format(error_msg, term.Color.RED)
+				# error_flag = term.format('FAILED',  term.Color.RED)
+				# display_msg(error_msg, error_flag)
 
 	def terminate(self):
 		for proxy in self.proxies:

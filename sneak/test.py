@@ -270,7 +270,81 @@ class TestProxyChain(unittest.TestCase):
         proxy_chain.terminate()
         self.assertEqual(proxy_number, len(proxy_chain.proxies))
 
-from sneak.Netool import NetMap
+
+from sneak.Netool import Router, NetMap
+
+# 20180227 Y.D.: Test Router Tool
+class TestRouter(unittest.TestCase):
+
+    def test_get_network_status(self):
+
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+        # print(p.controller.get_hidden_service_descriptor('facebookcorewwwi'))
+        # print('='*20)
+        # print(p.controller.get_microdescriptor('FF71A57AAA7B2035DE699C1C204DDB69DB2E87CF'))
+        tool = Router()
+        result = tool.get_network_status(p)
+        print(result['HSDirs'])
+        p.terminate()
+
+    def test_list_circuits(self):
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+
+        router = Router(p)
+        router.list_circuits()
+
+        p.terminate()
+
+    def test_list_relays(self):
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+
+        router = Router(p)
+        router.list_relays()
+        p.terminate()
+
+    def test_get_relays_by_type(self):
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+
+        router = Router(p)
+        relay_table = router.get_relay_table()
+        relay_names = [
+            'Guard', 'Fast', 'HSDir', 'Exit', 'Named', 
+            'Valid', 'V2Dir', 'Stable', 'Unnamed', 'Running', 'Authority']
+
+        for name in relay_names:
+            relays = router.get_relays_by_type(name)
+            for relay in relays:
+                (relay_id, relay_val), = relay.items()
+                r = name in relay_val['flags']
+                self.assertTrue(r)
+        
+        not_exist_names = [
+            'Guards', 'Fats', 'HSDr', 'Exits', 'Nameds',]
+
+        for name in not_exist_names:
+            relays = router.get_relays_by_type(name)
+            self.assertEqual(0, len(relays))
+
+        p.terminate()
+
+    def test_sniff(self):
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+
+        r = Router(p)
+        r.sniff()
+        
+        p.terminate()
+
 
 class TestNetMap(unittest.TestCase):
 
@@ -278,36 +352,74 @@ class TestNetMap(unittest.TestCase):
         # Test Case 1: Usual domain
         netmap = NetMap()
         r = netmap.scan('www.google.com')
-        self.assertEqual(r[0][0], '80/tcp')
-        self.assertEqual(r[0][1], 'open')
-        self.assertEqual(r[0][2], 'http')
-        self.assertEqual(r[1][0], '443/tcp')
-        self.assertEqual(r[1][1], 'open')
-        self.assertEqual(r[1][2], 'https')
+        
+        self.assertTrue('www.google.com' in r['host'])
+        self.assertEqual(r['services'][0][0], '80/tcp')
+        self.assertEqual(r['services'][0][1], 'open')
+        self.assertEqual(r['services'][0][2], 'http')
+        self.assertEqual(r['services'][1][0], '443/tcp')
+        self.assertEqual(r['services'][1][1], 'open')
+        self.assertEqual(r['services'][1][2], 'https')
 
         # Test Case 2: Ip address
-        netmap.scan('216.58.222.14')
-        self.assertEqual(r[0][0], '80/tcp')
-        self.assertEqual(r[0][1], 'open')
-        self.assertEqual(r[0][2], 'http')
-        self.assertEqual(r[1][0], '443/tcp')
-        self.assertEqual(r[1][1], 'open')
-        self.assertEqual(r[1][2], 'https')
+        r = netmap.scan('216.58.222.14')
+        self.assertEqual(r['host'], '216.58.222.14')
+        self.assertEqual(r['services'][0][0], '80/tcp')
+        self.assertEqual(r['services'][0][1], 'open')
+        self.assertEqual(r['services'][0][2], 'http')
+        self.assertEqual(r['services'][1][0], '443/tcp')
+        self.assertEqual(r['services'][1][1], 'open')
+        self.assertEqual(r['services'][1][2], 'https')
 
         # Test Case 3: Onion site
-        netmap.scan('facebookcorewwwi.onion')
-        self.assertEqual(r[0][0], '80/tcp')
-        self.assertEqual(r[0][1], 'open')
-        self.assertEqual(r[0][2], 'http')
-        self.assertEqual(r[1][0], '443/tcp')
-        self.assertEqual(r[1][1], 'open')
-        self.assertEqual(r[1][2], 'https')
+        r = netmap.scan('facebookcorewwwi.onion')
+        self.assertTrue('facebookcorewwwi.onion' in r['host'])
+        self.assertEqual(r['services'][0][0], '80/tcp')
+        self.assertEqual(r['services'][0][1], 'open')
+        self.assertEqual(r['services'][0][2], 'http')
+        self.assertEqual(r['services'][1][0], '443/tcp')
+        self.assertEqual(r['services'][1][1], 'open')
+        self.assertEqual(r['services'][1][2], 'https')
 
         # Test Case 4: Stupid Ip addresses
         netmap.scan('216.58.222.14.216.58.222.14')
         netmap.scan('2165822214')
         netmap.scan('2165.8222.14')
         netmap.terminate()
+
+        # Test Case 5: If proxies are used already. Does netmap display error message?
+        p0 = Proxy(socks_port=9050, control_port=9051, tor_path='tor_0')
+        p1 = Proxy(socks_port=9150, control_port=9151, tor_path='tor_1')
+        p2 = Proxy(socks_port=9250, control_port=9251, tor_path='tor_2')
+
+        p0.run()
+        p1.run()
+        p2.run()
+        p0.auth_controller()
+        p1.auth_controller()
+        p2.auth_controller()
+
+        netmap = NetMap()
+
+        p0.terminate()
+        p1.terminate()
+        p2.terminate()
+
+
+
+import socks
+import socket
+
+# class TestSocket(unittest.TestCase):
+
+#     def test_socket(self):
+
+#         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#         socks.set_default_proxy(socks.SOCKS5, '127.0.0.1', 9050)
+#         socket.socket = socks.socksocket
+
+#     pass
+
 
 
 def main():
