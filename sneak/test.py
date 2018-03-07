@@ -3,6 +3,7 @@ import time
 import unittest
 import pprint
 import getpass
+import random
 
 
 import pycurl
@@ -273,20 +274,20 @@ class TestProxyChain(unittest.TestCase):
 
 from sneak.Netool import Router, NetMap
 
-# 20180227 Y.D.: Test Router Tool
+# 20180227 Y.D.: Test Router
 class TestRouter(unittest.TestCase):
 
-    def test_get_network_status(self):
+    def test_initial(self):
 
         p = Proxy()
         p.run()
         p.auth_controller()
-        # print(p.controller.get_hidden_service_descriptor('facebookcorewwwi'))
-        # print('='*20)
-        # print(p.controller.get_microdescriptor('FF71A57AAA7B2035DE699C1C204DDB69DB2E87CF'))
-        tool = Router()
-        result = tool.get_network_status(p)
-        print(result['HSDirs'])
+        router = Router(p)
+        for flag in router.known_flags:
+            if flag in ['Unnamed', 'Named', 'NoEdConsensus', 'BadExit']:
+                pass
+            else:
+                self.assertGreater(len(router.relay_types[flag]), 0)
         p.terminate()
 
     def test_list_circuits(self):
@@ -316,9 +317,10 @@ class TestRouter(unittest.TestCase):
         router = Router(p)
         relay_table = router.get_relay_table()
         relay_names = [
-            'Guard', 'Fast', 'HSDir', 'Exit', 'Named', 
-            'Valid', 'V2Dir', 'Stable', 'Unnamed', 'Running', 'Authority']
+            'Guard', 'Fast', 'HSDir', 'Exit', 'BadExit', 'Named', 
+            'NoEdConsensus', 'Valid', 'V2Dir', 'Stable', 'Unnamed', 'Running', 'Authority']
 
+        # Test Case 1: 
         for name in relay_names:
             relays = router.get_relays_by_type(name)
             for relay in relays:
@@ -326,25 +328,68 @@ class TestRouter(unittest.TestCase):
                 r = name in relay_val['flags']
                 self.assertTrue(r)
         
-        not_exist_names = [
-            'Guards', 'Fats', 'HSDr', 'Exits', 'Nameds',]
+        not_exist_names = ['Gard', 'Fat', 'HSDr', 'Exist']
 
         for name in not_exist_names:
             relays = router.get_relays_by_type(name)
             self.assertEqual(0, len(relays))
 
+        # Test Case 2: Select Exit nodes without Guards
+        relays = router.get_relays_by_type('Exit', excludes=['Guard'])
+        for relay in relays:
+            (relay_name, relay_info), = relay.items()
+            if 'Guard' in relay_info['flags']:
+                self.assertTrue(False)
+
+        # Test Case 3: Select Guards and exclude them simultaneously
+        relays = router.get_relays_by_type('Guard', excludes=['Guard'])
+        self.assertEqual(len(relays), 0)
         p.terminate()
 
     def test_sniff(self):
         p = Proxy()
         p.run()
         p.auth_controller()
-
         r = Router(p)
         r.sniff()
-        
         p.terminate()
 
+    # 20180307 Y.D.
+    def test_add_route(self):
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+
+        r = Router(p)
+        num_origin_circuit = len(r.circuits)
+        r.list_circuits()
+        print('='*20)
+        # Test Case 1:
+        r.add_route()
+        r.list_circuits()
+        num_added_circuit = len(r.circuits)
+
+        r1 = Router(p)
+        r1.list_circuits()
+
+        # self.assertGreater(num_origin_circuit, num_added_circuit)
+
+        # Test Case 2: Build a custom circuit.
+        # num_guards = len(r.relay_types['Guard'])
+        # num_guard  = random.randint(0, num_guards-1)
+        # num_fasts  = len(r.relay_types['Fast'])
+        # num_fast0  = random.randint(0, num_fasts-1)
+        # num_fast1  = random.randint(0, num_fasts-1)
+        # guard = r.relay_types['Guard'][num_guard]
+        # fast0 = r.relay_types['Fast'][num_fast0]
+        # while num_fast0 == num_fast1:
+        #     num_fast1  = random.randint(0, num_fasts-1)
+        # fast1 = r.relay_types['Fast'][num_fast1]
+        # new_path = [guard, fast0, fast1]
+        # r.add_route(new_path)
+        # num_added_circuit = len(r.circuits)
+        # self.assertGreater(num_added_circuit, num_origin_circuit)
+        p.terminate()
 
 class TestNetMap(unittest.TestCase):
 

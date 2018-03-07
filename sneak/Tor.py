@@ -32,8 +32,20 @@ MESSAGE_FLAGS_AND_COLOR = {
 	'WARNING' : term.Color.YELLOW,
 	'FINISHED': term.Color.GREEN,
 	'STARTING': term.Color.GREEN,
-	'RELAY_INFO': term.Color.MAGENTA
+	'RELAY_INFO': term.Color.MAGENTA,
 }
+
+# 20180306 Y.D.
+TCPDUMP_COLOR = [
+	term.Color.BLUE,  
+	term.Color.CYAN, 
+	term.Color.GREEN, 
+	term.Color.MAGENTA, 
+	term.Color.RED,   
+	term.Color.WHITE, 
+	term.Color.YELLOW
+]
+
 
 def print_bootstrap_lines(line):
 	if "Bootstrapped " in line:
@@ -42,7 +54,7 @@ def print_bootstrap_lines(line):
 
 def seed():
 	'''seed
-	*description*  
+	***description***  
 		The function is used to generate seed for hash password.
 		It produces a short hash with length 10.
 	'''
@@ -53,24 +65,31 @@ def seed():
 def display_msg(msg, flag=''):
 # def display_msg(msg, flag=None):
 	'''display_msg
-	*description*  
-		Display the processing message of the process.
+	*****description***  
+		Display the processing message of the process.  
+	***params***  
+		msg: < string >
+
+		flag: < string >
 	'''
-	if flag:
+	if flag in MESSAGE_FLAGS_AND_COLOR:
 		color = MESSAGE_FLAGS_AND_COLOR[flag]
-		flag  = '[{}]'.format(flag)
-		msg   = term.format(msg,  color)
-		flag  = term.format(flag, color)
-		msg   = '{} {}\n'.format(flag, msg)
-		sys.stdout.write(msg)
+	# 20180306 Y.D. Random select the color.
+	elif 'TCP DUMP' in flag:
+		num = 0
+		for c in flag:
+			num += ord(c)
+
+		color = TCPDUMP_COLOR[num%len(TCPDUMP_COLOR)]
 	else:
 		sys.stdout.write(msg+'\n')
+		return
 
-	# if flag:
-	# 	message = '[{0}] {1} \n'.format(flag, msg)
-	# else:
-	# 	message = '{0} \n'.format(msg)
-	# sys.stdout.write(message)
+	flag  = '[{}]'.format(flag)
+	flag  = term.format(flag, color)
+	msg   = term.format(msg,  color)
+	msg   = '{} {}\n'.format(flag, msg)
+	sys.stdout.write(msg)
 
 class Proxy():
 
@@ -149,7 +168,7 @@ class Proxy():
 
 	def auth_controller(self):
 		'''auth_controller
-		*description*  
+		***description***  
         	Initial a tor proxy controller  
 		'''
 		self.controller = Controller.from_port(port=self.control_port)
@@ -157,7 +176,7 @@ class Proxy():
     	
 	def renew_identity(self):
 		'''renew_identity
-		*description*  
+		***description***  
 			According to the official document, user's identity is defined by three-hop service.
 			Once renew_identity is performed, process will request tor for a new identity.
 			However, the renew operation does not mean it will always provide new ip addresses.
@@ -175,7 +194,7 @@ class Proxy():
 
 	def terminate(self):
 		'''terminate
-		*description*  
+		***description***  
 			End the tor process. Before the Tor relay is killed, display how many bytes our relay is read or written. 
 		'''
 
@@ -192,43 +211,43 @@ class Proxy():
 
 	def get_circuits(self):
 		'''get_circuits
-		*description*
+		***description***  
 			List all available circuits.
 
 		'''
 		return sorted((self.controller.get_circuits()))
-		# for circuit in sorted(self.controller.get_circuits()):
-		# 	if circuit.status != CircStatus.BUILT:
-		# 		continue
+		
+	def add_circuit(self, circuit_id='0', path=[], purpose='general'):
+		'''
+		Router.add_circuit()
+		***description***  
 
-		# 	circuit_meta = 'Circuit %s (%s)' % (circuit.id, circuit.purpose)
-		# 	circuit_meta = term.format(circuit_meta, term.Color.GREEN)
-		# 	display_msg(circuit_meta, 'INFO')
+		***params***  
 
-		# 	for i, entry in enumerate(circuit.path):
-		# 		div = '+' if (i == len(circuit.path)-1) else '|'
-		# 		fingerprint, nickname = entry
-		# 		desciption = self.controller.get_network_status(fingerprint, None)
-		# 		address    = desciption.address if desciption else 'unknown'
-		# 		nickname_and_address = '(%s, %s)' % (nickname, address)
-		# 		nickname_and_address = term.format(nickname_and_address, term.Color.WHITE)
-		# 		div_and_fingerprint  = '%s - %s' % (div, fingerprint)
-		# 		div_and_fingerprint  = term.format(div_and_fingerprint, term.Color.YELLOW)
-		# 		display_msg('%s %s' % (div_and_fingerprint, nickname_and_address))
+		'''
+		
+		if len(path) > 0 and circuit_id == '0':
+			self.controller.new_circuit(path=path, purpose=purpose)
+		elif len(path) > 0:
+			self.controller.new_circuit(id=circuit_id, path=path, purpose=purpose)
+		else:
+			print('Add Path...')
+			self.controller.new_circuit(purpose=purpose)
+		return self
 
 	# 20171225 Y.D. TODO:
-	def customize_circuit(self, path, purpose='general'):
-		'''
-		*description*
-			Build a new circuit.
+	# def customize_circuit(self, path, purpose='general'):
+	# 	'''
+	# 	***description***  
+	# 		Build a new circuit.
 
-		*params*
-			path: < list >    
+	# 	***params***  
+	# 		path: < list >    
 			
 
-		'''
-		self.controller.new_circuit(path=path, purpose=purpose)
-		print(self.controller.get_info('circuit-status'))
+	# 	'''
+	# 	self.controller.new_circuit(path=path, purpose=purpose)
+	# 	print(self.controller.get_info('circuit-status'))
 
 # 20180226 Y.D. 
 class ProxyChain():
@@ -264,8 +283,6 @@ class ProxyChain():
 			error_msg = \
 				'No Proxy is able to be chained. Maybe they do not start successfully.\n'
 			display_msg(error_msg, 'ERROR')
-			# error_msg  = term.format(error_msg, term.Color.RED)
-			# error_flag = term.format('FAILED',  term.Color.RED)
 			return False
 		else:
 			return True
