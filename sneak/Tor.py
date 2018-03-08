@@ -227,13 +227,12 @@ class Proxy():
 		'''
 		
 		if len(path) > 0 and circuit_id == '0':
-			self.controller.new_circuit(path=path, purpose=purpose)
+			self.controller.new_circuit(path=path, purpose=purpose, await_build=True)
 		elif len(path) > 0:
-			self.controller.new_circuit(id=circuit_id, path=path, purpose=purpose)
+			self.controller.new_circuit(id=circuit_id, path=path, purpose=purpose, await_build=True)
 		else:
-			print('Add Path...')
-			self.controller.new_circuit(purpose=purpose)
-		return self
+			self.controller.new_circuit(purpose=purpose, await_build=True)
+
 
 	# 20171225 Y.D. TODO:
 	# def customize_circuit(self, path, purpose='general'):

@@ -207,10 +207,10 @@ class Router():
 		#### _access_circuits
 
 		_'''
-
 		for circuit in self.proxy.get_circuits():
-			if circuit.status != CircStatus.BUILT:
-				continue
+
+			# if circuit.status != CircStatus.BUILT:
+			# 	continue
 
 			self.circuits[circuit.id] = {
 				'purpose': circuit.purpose,
@@ -235,7 +235,12 @@ class Router():
 			msg = 'The circuit {} is not existed.'.format(circuit_id)
 			display_msg(msg, 'ERROR')
 		else:
-			self.proxy = self.proxy.add_circuit(circuit_id='0', path=path, purpose='general')
+			try:
+				self.proxy.add_circuit(circuit_id='0', path=path, purpose='general')
+			except Exception as e:
+				msg = '{}'.format(e)
+				display_msg(msg, 'ERROR')
+				return
 		self._access_circuits()
 
 	def extend_exiting_route(self):

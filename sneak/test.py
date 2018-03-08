@@ -362,33 +362,44 @@ class TestRouter(unittest.TestCase):
 
         r = Router(p)
         num_origin_circuit = len(r.circuits)
-        r.list_circuits()
-        print('='*20)
-        # Test Case 1:
-        r.add_route()
-        r.list_circuits()
-        num_added_circuit = len(r.circuits)
 
-        r1 = Router(p)
-        r1.list_circuits()
+        # r.list_circuits()
+        # print('='*20)
+        # # Test Case 1:
+        # r.add_route()
+        # r.list_circuits()
+        # num_added_circuit = len(r.circuits)
 
-        # self.assertGreater(num_origin_circuit, num_added_circuit)
+        # self.assertGreater(num_added_circuit, num_origin_circuit)
 
         # Test Case 2: Build a custom circuit.
-        # num_guards = len(r.relay_types['Guard'])
-        # num_guard  = random.randint(0, num_guards-1)
-        # num_fasts  = len(r.relay_types['Fast'])
-        # num_fast0  = random.randint(0, num_fasts-1)
-        # num_fast1  = random.randint(0, num_fasts-1)
-        # guard = r.relay_types['Guard'][num_guard]
-        # fast0 = r.relay_types['Fast'][num_fast0]
-        # while num_fast0 == num_fast1:
-        #     num_fast1  = random.randint(0, num_fasts-1)
-        # fast1 = r.relay_types['Fast'][num_fast1]
-        # new_path = [guard, fast0, fast1]
-        # r.add_route(new_path)
-        # num_added_circuit = len(r.circuits)
-        # self.assertGreater(num_added_circuit, num_origin_circuit)
+        num_guards = len(r.relay_types['Guard'])
+        num_guard  = random.randint(0, num_guards-1)
+        num_fasts  = len(r.relay_types['Fast'])
+        num_fast0  = random.randint(0, num_fasts-1)
+        num_fast1  = random.randint(0, num_fasts-1)
+        guard = r.relay_types['Guard'][num_guard]
+        fast0 = r.relay_types['Fast'][num_fast0]
+        while num_fast0 == num_fast1:
+            num_fast1  = random.randint(0, num_fasts-1)
+        fast1 = r.relay_types['Fast'][num_fast1]
+        new_path = [guard, fast0, fast1]
+        r.add_route(path=new_path)
+        num_added_circuit = len(r.circuits)
+        self.assertGreater(num_added_circuit, num_origin_circuit)
+
+        # Test Case 3: Create a path which have three same nodes
+        num_fasts = len(r.relay_types['Fast'])
+        num_fast  = random.randint(0, num_fasts-1)
+        node = r.relay_types['Fast'][num_fast]
+        new_path = [node] * 3
+        num_circuits = len(r.circuits)
+        r.add_route(path=new_path)
+        new_num_circuits = len(r.circuits)
+
+        # Test Case 4: 
+        
+
         p.terminate()
 
 class TestNetMap(unittest.TestCase):
