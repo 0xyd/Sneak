@@ -142,7 +142,10 @@ class Response():
         self.size_upload   = curl.getinfo(pycurl.SIZE_UPLOAD)                     
         self.size_download = curl.getinfo(pycurl.SIZE_DOWNLOAD)                 
         self.header_size  = curl.getinfo(pycurl.HEADER_SIZE)                     
-        self.request_size = curl.getinfo(pycurl.REQUEST_SIZE)                   
+        self.request_size = curl.getinfo(pycurl.REQUEST_SIZE)  
+
+        # 20180308 Y.D. 
+        self.url = curl.getinfo(pycurl.EFFECTIVE_URL)
 
     def decode_body(self, body):
         '''
@@ -164,7 +167,7 @@ class Response():
                 body = zlib.decompress(body, zlib.MAX_WBITS|16)
         except Exception as e:
             e = term.format(str(e), term.Color.RED)
-            flag = term.format('Error', term.Color.RED)
+            flag = term.format('ERROR', term.Color.RED)
             display_msg(e, flag)
         self.body = body.decode(self.charset, errors='replace')
 
@@ -504,7 +507,7 @@ class Session(TorSessionMixin):
                     line = term.format(
                         'The URL is not an onion. Please use get() instead', 
                             term.Color.RED)
-                    flag = term.format('Error', term.Color.RED)
+                    flag = term.format('ERROR', term.Color.RED)
                     display_msg(line, flag)
                     return None
 
@@ -553,7 +556,7 @@ class Session(TorSessionMixin):
                 return r
             except Exception as e:
                 e = term.format(str(e), term.Color.RED)
-                flag = term.format('Error', term.Color.RED)
+                flag = term.format('ERROR', term.Color.RED)
                 display_msg(e, flag)
                 return 
         return get
@@ -639,7 +642,7 @@ class Session(TorSessionMixin):
                 return r
             except Exception as e:
                 e = term.format(str(e), term.Color.RED)
-                flag = term.format('Error', term.Color.RED)
+                flag = term.format('ERROR', term.Color.RED)
                 display_msg(e, flag)
                 return 
             
@@ -732,7 +735,7 @@ class Session(TorSessionMixin):
                 return r
             except Exception as e:
                 e = term.format(str(e), term.Color.RED)
-                flag = term.format('Error', term.Color.RED)
+                flag = term.format('ERROR', term.Color.RED)
                 display_msg(e, flag)
                 return 
         return head
@@ -808,11 +811,11 @@ from functools import partial
 from threading import Thread, Event
 from collections import OrderedDict as odict
 
-class HttpWorkerPool():
+class SessionPool():
     '''
-    ### HttpWorkerPool
+    ### SessionPool
     ***description***  
-        HttpWorkerPool are designed for conducting http jobs in sequence order. 
+        SessionPool are designed for conducting http jobs in sequence order. 
         Multiple sessions are stored to handle the assigned tasks 
         
     ***params***  
@@ -866,11 +869,18 @@ class HttpWorkerPool():
             'prepared' 's value is Queue object where the undo tasks are stored.  
             'finished' 's value is Queue object where the results of tasks are store in Queue
         '''
-        worker_list = list(self.workers.items())
-        worker = worker_list[index]
-        name = worker[0]
-        sess = worker[1]['session']
-        return sess
+        for i, worker in enumerate(self.workers.items()):
+            if i == index:
+                return worker[1]['session']
+        display_msg('Session {} is not valid. It might be terminated. '.format(i), 'ERROR')
+        return
+
+        # 20180309 Y.D. :Deprecated
+        # worker_list = list(self.workers.items())
+        # worker = worker_list[index]
+        # name = worker[0]
+        # sess = worker[1]['session']
+        # return sess
 
     def get_worker_by_name(self, name):
         '''
@@ -909,6 +919,7 @@ class HttpWorkerPool():
         '''
         # The function for wrapper to call.
         def task_get(session, result_queue, url, headers, is_onion=False):
+            display_msg('GET {}.'.format(url), 'INFO')
             if is_onion:
                 res = session.get_onion(url, headers=headers)
             else:
@@ -916,6 +927,7 @@ class HttpWorkerPool():
             result_queue.put(res)
 
         def task_post(session, result_queue, url, data, headers, is_onion=False):
+            display_msg('POST {} on {}.'.format(data, url), 'INFO')
             if is_onion:
                 res = session.post_onion(url, data=data, headers=headers)
             else:
@@ -923,6 +935,7 @@ class HttpWorkerPool():
             result_queue.put(res)
 
         def task_head(session, result_queue, url, headers, is_onion=False):
+            display_msg('HEAD {}.'.format(url), 'INFO')
             if is_onion:
                 res = session.head_onion(url, headers=headers)
             else:
@@ -970,8 +983,8 @@ class HttpWorkerPool():
 
         self._sort_worker_queue()
 
-
-    def work(self, timeout=60):
+    
+    def work(self, batch_size=10, timeout=60):
         '''
         #### work()  
         ***description***  
@@ -979,7 +992,9 @@ class HttpWorkerPool():
 
         ***params***  
             * timeout: < int >  
-            Set up the timeout seconds. Once the time is out, renew the session.
+            Set up the timeout seconds. Once the time is out, renew the session.  
+
+            * 
 
         ***return***  
             results: < dict >  
@@ -1046,6 +1061,32 @@ class HttpWorkerPool():
                     result = work['finished'].get()
                     results[name].append(result)
         return results
+
+    # 20180309 Y.D.
+    def terminate_session_by_name(self, name):
+        sess = self.get_workekr_by_name(name)
+
+        pass
+
+    def terminate_session_by_index(self, index):
+        sess = self.get_worker_by_index(index)
+        if sess:
+            # (name, sess) = next(sess.items())
+            sess.proxy.terminate()
+            msg = 'Session {}, Name: {} is terminated successfully.'.format(index, sess.name)
+            display_msg(msg, 'UPDATE')
+            return True
+        else:
+            display_msg('Session {} does not exist'.format(index), 'ERROR')
+            return False
+
+    # 20180309 Y.D.
+    def terminate_all(self):
+        for worker_id, worker in self.workers.items():
+            worker['session'].proxy.terminate()
+
+
+        
 
 
             

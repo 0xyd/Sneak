@@ -10,7 +10,7 @@ import requests
 import lxml.html
 from lxml import cssselect
 
-from sneak.Http import Session, HttpWorkerPool, default_curl
+from sneak.Http import Session, SessionPool, default_curl
 from sneak.Tor  import Proxy
 from test_data  import test_settings
 
@@ -388,7 +388,7 @@ class TestSession(unittest.TestCase):
         self.assertEqual(log_status, 'Logout')
 
 
-# The functions of HttpWorkerPool are multithreading
+# The functions of SessionPool are multithreading
 # Thus, the tests are not normal unit tests.
 def no_more_work(pool):
     no_more_work = True
@@ -398,8 +398,20 @@ def no_more_work(pool):
             break
     return no_more_work
 
-class TestHttpWorkerPool(unittest.TestCase):
+class TestSessionPool(unittest.TestCase):
 
+    # 20180309 Y.D.
+    def gen_sessions(self, num_sessions):
+        sessions = []
+        socks_port = 9050
+        control_port = 9151
+        for i in range(num_sessions):
+            s = Session(
+                socks_port=socks_port, control_port=control_port, tor_path='tor_'+str(i))
+            sessions.append(s)
+            socks_port += 100
+            control_port += 100
+        return sessions
 
     def test_work_get(self):
 
@@ -409,7 +421,7 @@ class TestHttpWorkerPool(unittest.TestCase):
 
         for i in range(3):
             sessions.append(Session(shared_proxy=p))
-        pool = HttpWorkerPool(workers=sessions)
+        pool = SessionPool(workers=sessions)
 
         # Test Case 1: GET
         for i in range(5):
@@ -488,7 +500,7 @@ class TestHttpWorkerPool(unittest.TestCase):
 
         for i in range(3):
             sessions.append(Session(shared_proxy=p, name='session-'+str(i)))
-        pool = HttpWorkerPool(workers=sessions)
+        pool = SessionPool(workers=sessions)
 
         urls = [
             'http://msydqstlz2kzerdg.onion',
@@ -530,7 +542,7 @@ class TestHttpWorkerPool(unittest.TestCase):
 
         for i in range(3):
             sessions.append(Session(shared_proxy=p))
-        pool = HttpWorkerPool(workers=sessions)
+        pool = SessionPool(workers=sessions)
 
         test_post_data = [{'1':'1'}, {'2':'2'}, {'3':'3'}, {'4':'4'}, {'5':'5'}]
         for d in test_post_data:
@@ -557,7 +569,7 @@ class TestHttpWorkerPool(unittest.TestCase):
 
         for i in range(3):
             sessions.append(Session(shared_proxy=p, name='session-'+str(i)))
-        pool = HttpWorkerPool(workers=sessions)
+        pool = SessionPool(workers=sessions)
 
         test_urls = [
             'http://pms5n4czsmblkcjl.onion/cart.php',
@@ -594,7 +606,7 @@ class TestHttpWorkerPool(unittest.TestCase):
 
         for i in range(3):
             sessions.append(Session(shared_proxy=p))
-        pool = HttpWorkerPool(workers=sessions)
+        pool = SessionPool(workers=sessions)
 
         for i in range(5):
             pool.add_task('https://now.httpbin.org', method='HEAD')
@@ -630,7 +642,7 @@ class TestHttpWorkerPool(unittest.TestCase):
         for i in range(2):
             sessions.append(Session(shared_proxy=p))
 
-        pool = HttpWorkerPool(workers=[session] + sessions)
+        pool = SessionPool(workers=[session] + sessions)
         pool.add_task(
             'https://pypi.python.org/pypi', data=login, method='POST', assigned='test-login')
         pool.add_task(
@@ -657,11 +669,16 @@ class TestHttpWorkerPool(unittest.TestCase):
             sess = Session(shared_proxy=p)
             sessions_names.append(sess.name)
             sessions.append(sess)
-        pool = HttpWorkerPool(workers=sessions)
+        pool = SessionPool(workers=sessions)
 
+        # Test Case 1: Make sure every session is accessible
         for i in range(3):
             sess = pool.get_worker_by_index(i)
             self.assertEqual(sess, sessions[i])
+
+        # Test Case 2: Get a session with invalid index
+        sess = pool.get_worker_by_index(100)
+        self.assertEqual(None, sess)
 
         p.terminate()
 
@@ -676,13 +693,45 @@ class TestHttpWorkerPool(unittest.TestCase):
             sess = Session(shared_proxy=p, name=name)
             sessions.append(sess)
 
-        pool = HttpWorkerPool(workers=sessions)
+        pool = SessionPool(workers=sessions)
 
         for i in range(len(sessions_names)):
             sess = pool.get_worker_by_name(sessions_names[i])
             self.assertEqual(sessions[i], sess)
 
         p.terminate()
+
+    def test_terminate_all(self):
+        sessions = self.gen_sessions(3)
+        pool = SessionPool(workers=sessions)
+        pool.terminate_all()
+
+        # Test Case 1: Reexecute the sessions to check if os error exception
+        for s in sessions:
+            r = s.get('https://www.google.com')
+            self.assertEqual(r, None)
+
+    def test_terminate_session_by_index(self):
+        sessions = self.gen_sessions(3)
+        pool = SessionPool(workers=sessions)
+
+        # Test Case 1: Delete a session with valid index
+        index = 2
+        del_res = pool.terminate_session_by_index(index)
+        sess = pool.get_worker_by_index(2)
+        r = sess.get('https://www.google.com')
+        self.assertEqual(r, None)
+        self.assertTrue(del_res)
+
+        # Test Case 2: Delete a seesion with invalid index
+        index = 3
+        del_res = pool.terminate_session_by_index(3)
+        self.assertFalse(del_res)
+
+        pool.terminate_all()
+
+    def test_terminate_session_by_name(self):
+        pass
 
 
 def main():
