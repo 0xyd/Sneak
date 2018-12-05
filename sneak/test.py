@@ -11,7 +11,6 @@ import lxml.html
 from lxml import cssselect
 
 from sneak.Http import Session, HttpWorkerPool, default_curl
->>>>>>> Stashed changes
 from sneak.Tor  import Proxy
 from test_data  import test_settings
 
@@ -73,7 +72,6 @@ class TestSession(unittest.TestCase):
         r7 = s2.get_onion('https://www.google.com/')
         s.proxy.terminate()
 
-
         proxy = Proxy()
         proxy.run()
         s3 = Session(shared_proxy=proxy)
@@ -104,6 +102,43 @@ class TestSession(unittest.TestCase):
             'Accept-Encoding': ''
         }
         user_agent = 'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0'
+
+        s = Session()
+        # s.cUrl.setopt(pycurl.VERBOSE, True)
+
+        # Test Case 1. Set two different settings with different APIs.
+        r0 = s.get('https://httpbin.org/anything', headers=headers, user_agent=user_agent)
+
+        # 20170211 Y.D. Add a new test to make sure request headers setting is correct
+        q0 = s.req_headers 
+
+        s.set_headers(headers=headers, user_agent=user_agent)
+        r1 = s.get('https://httpbin.org/anything')
+
+        # 20170211 Y.D. Add a new test to make sure request headers setting is correct
+        q1 = s.req_headers 
+
+        r0_body = json.loads(r0.body)
+        r1_body = json.loads(r1.body)
+        pprint.pprint(r0_body['headers'], indent=4)
+        pprint.pprint(r1_body['headers'], indent=4)
+
+        # Test Case 2. Use the same setting and test again.
+        r2 = s.get('https://httpbin.org/anything')
+        r2_body = json.loads(r2.body)
+        pprint.pprint(r2_body['headers'], indent=4)
+
+        # Test Case 3. Change accept format 
+        headers['Accept'] = \
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8'
+        r3 = s.set_headers(headers)
+        r3 = s.get('https://httpbin.org/anything')
+        r3_body = json.loads(r3.body)
+        pprint.pprint(r3_body['headers'], indent=4)
+
+        # Test Case 4. 
+        r4 = s.post('https://httpbin.org/post', data={1:1, 2:2}, 
+            headers=headers, user_agent=user_agent)
 
         s = Session()
         # s.cUrl.setopt(pycurl.VERBOSE, True)
@@ -419,8 +454,6 @@ class TestSession(unittest.TestCase):
         s.proxy.terminate()
         self.assertEqual(log_status, 'Logout')
 
-
-
 # The functions of HttpWorkerPool are multithreading
 # Thus, the tests are not normal unit tests.
 class TestHttpWorkerPool(unittest.TestCase):
@@ -578,6 +611,7 @@ class TestHttpWorkerPool(unittest.TestCase):
         for i in range(3):
             sess = pool.get_worker_by_index(i)
             self.assertEqual(sess, sessions[i])
+
         p.terminate()
 
 

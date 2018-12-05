@@ -332,7 +332,6 @@ class Session(TorSessionMixin):
             stamp = hashlib.sha256(stamp)
             self.name = stamp.hexdigest()[:16]
 
-
         self._init_cUrl(headers=headers, user_agent=user_agent)
 
     def set_headers(self, headers={}, user_agent='', keep_alive=False):
@@ -380,6 +379,8 @@ class Session(TorSessionMixin):
         self.cUrl = pycurl.Curl()
         self.cUrl.setopt(pycurl.HEADER, True)
         self.cUrl.setopt(pycurl.HEADERFUNCTION, self._parse_header)
+        self.set_headers(headers, user_agent, self.keep_alive)
+
         self.set_headers(headers, user_agent, self.keep_alive)
 
         # Set up the ssl settings
@@ -823,6 +824,218 @@ class Session(TorSessionMixin):
             Where the delete request will be send to.
         '''
         pass
+
+    def delete_onion(self, onion_url):
+        '''
+        #### delete_onion()
+        ***description***  
+            Send a delete request on an onion site.
+        '''
+        pass
+
+
+from queue import Queue, Empty
+from functools import partial
+from threading import Thread, Event
+from collections import OrderedDict as odict
+
+class HttpWorkerPool():
+
+    def __init__(self, workers, elapsed=.5):
+
+        self.workers = odict()
+        self.threads = []
+        for worker in workers:
+            name = worker.name
+            w = {
+                name : {
+                    'session' : worker,
+                    'prepared': Queue(), # prepared queue to store the working task
+                    'finished': Queue()  # finished queue to store the results of task
+                }
+            }
+            self.workers.update(w)
+
+        self.num_workers = len(workers)
+        self.elapsed = elapsed
+
+        # 20170214 Y.D.:
+        self.lock = Event()
+
+    def _sort_worker_queue(self):
+        '''_sort_worker_queue
+        ***description***  
+            The function is used to sort the workers according to the prepared working queue.  
+
+        '''
+        self.workers = odict(
+            sorted(self.workers.items(), key=lambda x: x[1]['prepared'].qsize()))
+
+    def get_worker_by_index(self, index):
+        worker_list = list(self.workers.items())
+        worker = worker_list[index]
+        name = worker[0]
+        sess = worker[1]['session']
+        return sess
+
+    def get_worker_by_name(self, name):
+        worker = self.workers[name]
+        sess   = worker['session']
+        return sess
+
+    def add_task(self, url, assigned='', method='GET', 
+        header={}, user_agent='', data={}, is_onion=False):
+        '''   
+        #### add_task()  
+        ***description***  
+            Add the Http task to the workers.  
+        ***params***  
+            url: < string >
+            The host's url which you want to head.  
+
+            assigned: < string >  
+            The session which user want to assign the job.  
+
+            headers: < dict >
+            Headers information.  
+
+            data: < dict >  
+            The data which is used to post form.  
+
+            user_agent: < string >  
+            Set up the User Agent.  
+        '''
+        # The function for wrapper to call.
+        def task_get(session, result_queue, url, header, user_agent, is_onion=False):
+            if is_onion:
+                res = session.get_onion(url, header=header, user_agent=user_agent)
+            else:
+                res = session.get(url, header=header, user_agent=user_agent)
+            result_queue.put(res)
+
+        def task_post(session, result_queue, url, data, header, user_agent, is_onion=False):
+            if is_onion:
+                res = session.post_onion(url, data=data, header=header, user_agent=user_agent)
+            else:
+                res = session.post(url, data=data, header=header, user_agent=user_agent)
+            result_queue.put(res)
+
+        def task_head(session, result_queue, url, header, user_agent, is_onion=False):
+            if is_onion:
+                res = session.head_onion(url, header=header, user_agent=user_agent)
+            else:
+                res = session.head(url, header=header, user_agent=user_agent)
+            result_queue.put(res)
+
+        task = None
+        last_worker = list(self.workers.items())[0][1]
+        if method == 'GET' and len(assigned) == 0:
+            task = partial(
+                task_get, last_worker['session'], last_worker['finished'], 
+                url, header, user_agent, is_onion)
+            last_worker['prepared'].put(task)
+        elif method == 'POST' and len(assigned) == 0:
+            task = partial(
+                task_post, last_worker['session'], last_worker['finished'], 
+                url, data, header, user_agent, is_onion)
+            last_worker['prepared'].put(task)
+        elif method == 'HEAD' and len(assigned) == 0:
+            task = partial(
+                task_head, last_worker['session'], last_worker['finished'], 
+                url, header, user_agent, is_onion)
+            last_worker['prepared'].put(task)
+        elif method == 'GET':
+            task = partial(
+                task_get, 
+                self.workers[assigned]['session'], 
+                self.workers[assigned]['finished'], 
+                url, header, user_agent, is_onion)
+            self.workers[assigned]['prepared'].put(task)
+        elif method == 'POST':
+            task = partial(
+                task_post, 
+                self.workers[assigned]['session'], 
+                self.workers[assigned]['finished'], 
+                url, data, header, user_agent, is_onion)
+            self.workers[assigned]['prepared'].put(task)
+        elif method == 'HEAD':
+            task = partial(
+                task_head, 
+                self.workers[assigned]['session'], 
+                self.workers[assigned]['finished'], 
+                url, header, user_agent, is_onion)
+            self.workers[assigned]['prepared'].put(task)
+
+        self._sort_worker_queue()
+
+
+    def work(self, timeout=60):
+        '''
+        #### work()  
+        ***description***  
+            The workers in the pool start their jobs.  
+        
+        '''
+        self.lock.set()
+
+        while True:
+            tasks = []
+            sess_names   = []
+            self.threads = []
+            # Caculate how many workers haven't finished all their tasks
+            for worker in self.workers.items():
+                if worker[1]['prepared'].empty():
+                    pass
+                else:
+                    task = worker[1]['prepared'].get()
+                    tasks.append(task)
+                    sess_names.append(worker[0])
+
+            if len(tasks) == 0:
+                break
+            else:
+                self.threads = [ None ] * len(tasks)
+
+                for i, thread in enumerate(self.threads):
+                    thread = Thread(target=tasks[i])
+                    thread.name = '{}: {}'.format(thread.name, sess_names[i])
+                    thread.start()
+                    self.threads[i] = thread
+
+                for thread in self.threads:
+                    thread.join(timeout)
+                    time.sleep(self.elapsed)
+
+                # Timeout then renew the identity
+                is_identity_renew = False
+                for i, thread in enumerate(self.threads):
+                    if thread.isAlive():
+                        msg  = '{0} does not work in {1} second(s)'\
+                            .format(thread.name, timeout)
+                        msg  = term.format(msg, term.Color.RED) 
+                        flag = term.format('TimeOut', term.Color.RED)
+                        display_msg(msg, flag)
+                        self.lock.clear()
+                        self.get_worker_by_index(i).renew_identity()
+                        self.lock.set()
+                        is_identity_renew = True
+
+                    if is_identity_renew:
+                        break
+
+        # Retrieve working results of workers 
+        results = {}
+        for worker in self.workers.items():
+            name = worker[0]
+            work = worker[1]
+            results[name] = []
+            while True:
+                if work['finished'].empty():
+                    break
+                else:
+                    result = work['finished'].get()
+                    results[name].append(result)
+        return results
 
     def delete_onion(self, onion_url):
         '''
