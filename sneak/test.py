@@ -10,8 +10,17 @@ import requests
 import lxml.html
 from lxml import cssselect
 
-from sneak.Http import Session
+from sneak.Http import Session, SessionPool, default_curl
+from sneak.Tor  import Proxy
 from test_data  import test_settings
+
+
+def get_logstatus(html):
+    html = lxml.html.fromstring(bytes(html, 'utf8'))
+    html = html.get_element_by_id('document-navigation')
+    links  = html.cssselect('li>a')
+    status = links[1].text_content()
+    return status
 
 
 class TestSession(unittest.TestCase):
@@ -20,33 +29,134 @@ class TestSession(unittest.TestCase):
         s = Session()
         r = s.get('https://httpbin.org/ip')
         pprint.pprint(r.to_json(), indent=4)
-        self.assertEqual(r.status, 200)
-        
         r1 = s.get('https://httpbin.orgtttt/ip')
-        self.assertEqual(r1, None)
 
+        # 20170211 Y.D. Test if the user agent works or not
+        r2 = s.get('https://httpbin.org/ip', user_agent=default_curl)
+        user_agent = s.req_headers['User-Agent']
+
+        # 20170212 Y.D. Tests for Shared Proxies
+        shared_proxy = s.proxy
+        s2 = Session(shared_proxy=shared_proxy)
+        r3 = s2.get('https://httpbin.org/ip')
+        pprint.pprint(r3.to_json(), indent=4)
         s.proxy.terminate()
-        
+
+        p = Proxy()
+        p.run()
+        s3 = Session(shared_proxy=p)
+        r4 = s3.get('https://httpbin.org/ip')
+        p.terminate()
+
+        self.assertEqual(r.status, 200)
+        self.assertEqual(r1, None)
+        self.assertEqual(r2.status, 200)
+        self.assertEqual(user_agent, default_curl)
+        self.assertEqual(r3.status, 200)
+        self.assertEqual(r4.status, 200)
 
     def test_get_onion(self):
         s = Session()
         s.cUrl.setopt(pycurl.VERBOSE, True)
-        r = s.get_onion('http://msydqstlz2kzerdg.onion')
-        pprint.pprint(r.to_json(), indent=4)
-        self.assertEqual(r.status, 200)
+        r0 = s.get_onion('http://msydqstlz2kzerdg.onion')
+        r1 = s.get_onion('http://money4uitwxrt2us.onion')
+        r2 = s.get_onion('http://money4uitwxrt2usNeverExist.onion/')
+        r3 = s.get_onion('https://www.google.com/')
+        proxy = s.proxy
 
-        r = s.get_onion('http://money4uitwxrt2us.onion/')
-        pprint.pprint(r.to_json(), indent=4)
-        self.assertEqual(r.status, 200)
-
-        r = s.get_onion('http://money4uitwxrt2usNeverExist.onion/')
-        self.assertEqual(r, None)        
-
-        r = s.get_onion('https://www.google.com/')
-        self.assertEqual(None, r)
-
+        # 20170212 Y.D. Tests for Shared Proxies
+        s2 = Session(shared_proxy=proxy)
+        r4 = s2.get_onion('http://msydqstlz2kzerdg.onion')
+        r5 = s2.get_onion('http://money4uitwxrt2us.onion')
+        r6 = s2.get_onion('http://money4uitwxrt2usNeverExist.onion/')
+        r7 = s2.get_onion('https://www.google.com/')
         s.proxy.terminate()
-        
+
+        proxy = Proxy()
+        proxy.run()
+        s3 = Session(shared_proxy=proxy)
+        r8 = s3.get_onion('http://msydqstlz2kzerdg.onion')
+        r9 = s3.get_onion('http://money4uitwxrt2us.onion')
+        r10 = s3.get_onion('http://money4uitwxrt2usNeverExist.onion/')
+        r11 = s3.get_onion('https://www.google.com/')
+        proxy.terminate()
+
+        self.assertEqual(r0.status, 200)
+        self.assertEqual(r1.status, 200)
+        self.assertEqual(r2, None)
+        self.assertEqual(None, r3)
+        self.assertEqual(r4.status, 200)
+        self.assertEqual(r5.status, 200)
+        self.assertEqual(r6, None)
+        self.assertEqual(r7, None)
+        self.assertEqual(r8.status, 200)
+        self.assertEqual(r9.status, 200)
+        self.assertEqual(r10, None)
+        self.assertEqual(r11, None)
+
+    def test_set_headers(self):
+
+        user_agent = 'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0'
+        headers = {
+            'Accept': '*/*',
+            'Accept-Language': '',
+            'Accept-Encoding': '',
+            'User-Agent': user_agent   
+        }
+
+        s = Session()
+        s.cUrl.setopt(pycurl.VERBOSE, True)
+
+        # Test Case 1. Set two different settings with different APIs.
+        r0 = s.get('https://httpbin.org/anything', headers=headers)
+
+        # 20170211 Y.D. Add a new test to make sure request headers setting is correct
+        q0 = s.req_headers 
+        s.set_headers(headers=headers)
+        # s.set_headers(headers=headers, user_agent=user_agent)
+        r1 = s.get('https://httpbin.org/anything')
+
+        # 20170211 Y.D. Add a new test to make sure request headers setting is correct
+        q1 = s.req_headers 
+
+        r0_body = json.loads(r0.body)
+        r1_body = json.loads(r1.body)
+        pprint.pprint(r0_body['headers'], indent=4)
+        pprint.pprint(r1_body['headers'], indent=4)
+
+        # Test Case 2. Use the same setting and test again.
+        r2 = s.get('https://httpbin.org/anything')
+        r2_body = json.loads(r2.body)
+        pprint.pprint(r2_body['headers'], indent=4)
+
+        # Test Case 3. Change accept format 
+        headers['Accept'] = \
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8'
+        r3 = s.set_headers(headers)
+        r3 = s.get('https://httpbin.org/anything')
+        r3_body = json.loads(r3.body)
+        pprint.pprint(r3_body['headers'], indent=4)
+
+        # Test Case 4. 
+        r4 = s.post('https://httpbin.org/post', data={1:1, 2:2}, headers=headers)
+
+        # 20180221 Y.D. New Test for request headers
+        # Test Case 5. Set up user-agent only
+        r5 = s.get('https://httpbin.org/user-agent', headers={'User-Agent': user_agent})
+        r5_body = json.loads(r5.body)
+        s.proxy.terminate()
+
+        self.assertEqual(q0, headers)
+        self.assertEqual(q1, headers)
+
+        self.assertEqual(r0_body['headers'], r1_body['headers'])
+        self.assertEqual(r1_body['headers'], r2_body['headers'])
+        self.assertNotEqual(r0_body['headers'], r3_body['headers'])
+
+        self.assertEqual(200, r4.status)
+        self.assertEqual(r5_body['user-agent'], user_agent)
+
+
 
     def test_renew_identity(self):
         '''test_renew_identity
@@ -61,20 +171,35 @@ class TestSession(unittest.TestCase):
         prev_ip = json.loads(r.body)['origin']
         self.assertEqual(r.status, 200)
         
-        is_change = False
+        is_change_0 = False
         for i in range(5):
             s.renew_identity()
             r = s.get('https://httpbin.org/ip')
             new_ip = json.loads(r.body)['origin']
             print('check new ip %s' % new_ip)
             if new_ip != prev_ip:
-                is_change = True
+                is_change_0 = True
+                break
+            print('Session will sleep for 20 secs.')
+            time.sleep(20)
+            prev_ip = new_ip
+
+        is_change_1 = False
+        for i in range(5):
+            s.renew_identity(False)
+            r = s.get('https://httpbin.org/ip')
+            new_ip = json.loads(r.body)['origin']
+            print('check new ip %s' % new_ip)
+            if new_ip != prev_ip:
+                is_change_1 = True
                 break
             print('Session will sleep for 20 secs.')
             time.sleep(20)
             prev_ip = new_ip
         s.proxy.terminate()
-        self.assertTrue(is_change)
+
+        self.assertTrue(is_change_0)
+        self.assertTrue(is_change_1)
 
     # 2017115 Y.D. TODO: Add more sites as test case. 
     def test_post(self):
@@ -88,13 +213,14 @@ class TestSession(unittest.TestCase):
             
         
         '''
-        # TestCase 1.
+        # Test Case 1.
         s = Session(exit_country_code='tw')
         s.cUrl.setopt(pycurl.VERBOSE, True)
         r = s.post('https://httpbin.org/post', data={1:1, 2:2})
         pprint.pprint(r.to_json(), indent=4)
         s.proxy.terminate()
         self.assertEqual(r.status, 200)
+
 
         # TestCase 2.
         # r = s.post(
@@ -130,18 +256,15 @@ class TestSession(unittest.TestCase):
         r = s.post_onion(
             'http://pms5n4czsmblkcjl.onion/cart.php', 
             data={ 'id': 100,'add': 'action','text': 2})
-
-        pprint.pprint(r.to_json(), indent=4)
-        self.assertEqual(r.status, 200)
-
         r0 = s.post_onion(
             'http://pms5n4czsmblkcjlneverexist.onion/cart.php', 
             data={ 'id': 100,'add': 'action','text': 2})
-        self.assertEqual(None, r0)        
-
         r1 = s.post_onion('https://httpbin.org/post', data={1:1, 2:2})
-        self.assertEqual(None, r1)
         s.proxy.terminate()
+
+        self.assertEqual(r.status, 200)
+        self.assertEqual(None, r0)
+        self.assertEqual(None, r1)
         
 
     # 20171220 Y.D.: [HOTFIX] HEAD not works well...
@@ -157,9 +280,8 @@ class TestSession(unittest.TestCase):
         # req0 = requests.head('https://www.google.com')
         r1   = s.head('https://twitter.com/?lang=en')
         req1 = requests.head('https://twitter.com/?lang=en')
-        s.proxy.terminate()
-
         r2 = s.head('https://twitterneverexist.com/?lang=en')
+        s.proxy.terminate()
 
         # self.assertEqual(r0.status, req0.status_code)
         # self.assertEqual(r0.body  , req0.text)
@@ -189,21 +311,18 @@ class TestSession(unittest.TestCase):
         }
         r0   = s.head_onion('http://greenroxwc5po3ab.onion/')
         req0 = requests.head('http://greenroxwc5po3ab.onion/', proxies=proxies)
-        self.assertEqual(r0.status, req0.status_code)
-        self.assertEqual(r0.body,   req0.text)
-
         r1   = s.head_onion('http://ze2djl7sv6m7eqzi.onion/')
         req1 = requests.head('http://ze2djl7sv6m7eqzi.onion/', proxies=proxies)
+        r2 = s.head_onion('https://www.google.com')
+        r3 = s.head_onion('http://ze2djl7sv6m7eqzineverexist.onion/')
+        s.proxy.terminate()
+
+        self.assertEqual(r0.status, req0.status_code)
+        self.assertEqual(r0.body,   req0.text)
         self.assertEqual(r1.status, req1.status_code)
         self.assertEqual(r1.body,   req1.text)
-
-        r2 = s.head_onion('https://www.google.com')
         self.assertEqual(None, r2)
-
-        r3 = s.head_onion('http://ze2djl7sv6m7eqzineverexist.onion/')
         self.assertEqual(None, r3)
-
-        s.proxy.terminate()
 
     def test_cookie(self):
         '''
@@ -220,12 +339,12 @@ class TestSession(unittest.TestCase):
             Read cookie file directly.
 
         '''
-        def get_logstatus(html):
-            html = lxml.html.fromstring(bytes(html, 'utf8'))
-            html = html.get_element_by_id('document-navigation')
-            links  = html.cssselect('li>a')
-            status = links[1].text_content()
-            return status
+        # def get_logstatus(html):
+        #     html = lxml.html.fromstring(bytes(html, 'utf8'))
+        #     html = html.get_element_by_id('document-navigation')
+        #     links  = html.cssselect('li>a')
+        #     status = links[1].text_content()
+        #     return status
 
         log_status = ['', '']
 
@@ -265,8 +384,355 @@ class TestSession(unittest.TestCase):
         s = Session(cookie_path='test_data/cookies.txt')
         r = s.get('https://pypi.python.org/pypi')
         log_status = get_logstatus(r.body)
-        self.assertEqual(log_status, 'Logout')
         s.proxy.terminate()
+        self.assertEqual(log_status, 'Logout')
+
+
+# The functions of SessionPool are multithreading
+# Thus, the tests are not normal unit tests.
+def no_more_work(pool):
+    no_more_work = True
+    for worker in pool.workers.items():
+        if worker[1]['prepared'].empty() != True:
+            no_more_work = False
+            break
+    return no_more_work
+
+class TestSessionPool(unittest.TestCase):
+
+    # 20180309 Y.D.
+    def gen_sessions(self, num_sessions):
+        sessions = []
+        socks_port = 9050
+        control_port = 9151
+        for i in range(num_sessions):
+            s = Session(
+                socks_port=socks_port, control_port=control_port, tor_path='tor_'+str(i))
+            sessions.append(s)
+            socks_port += 100
+            control_port += 100
+        return sessions
+
+    def test_work_get(self):
+
+        sessions = []
+        p = Proxy()
+        p.run()
+
+        for i in range(3):
+            sessions.append(Session(shared_proxy=p))
+        pool = SessionPool(workers=sessions)
+
+        # Test Case 1: GET
+        for i in range(5):
+            pool.add_task('https://now.httpbin.org')
+        
+        for worker in pool.workers.items():
+            print(worker[1]['prepared'].qsize())
+
+        results = pool.work()
+        epochs = []
+        for name, res in results.items():
+            for r in res:
+                r = r.to_json()
+                epoch = json.loads(r['body'])['now']['epoch']
+                epochs.append(epoch)
+        epochs.sort()
+        for i in range(len(epochs)-1):
+            self.assertNotEqual(epochs[i], epochs[i+1])
+        
+        # Check the working queue is empty
+        self.assertTrue(no_more_work(pool))
+        
+        # Test Case 2: Assigin Testing
+        names = []
+        for sess in sessions:
+            names.append(sess.name)
+        assigned_session = names[0]
+
+        for i in range(5):
+            pool.add_task('https://now.httpbin.org', assigned=assigned_session)
+        results = pool.work()
+        
+        self.assertTrue(len(results[assigned_session]), 5)
+
+        # checkout the rest of sessions which was not assigned any task.
+        for name, meta in pool.workers.items():
+            if name != assigned_session:
+                self.assertEqual(len(results[name]), 0)
+        self.assertTrue(no_more_work(pool))
+
+        # Test Case 3: Check 
+        for i in range(5):
+            pool.add_task('https://now.httpbin.org')
+        results = pool.work(0.001)
+
+        result_num = 0
+        for _, r in results.items():
+            result_num += len(r)
+            for _r in r:
+                self.assertEqual(_r.status, 200)
+        self.assertEqual(result_num, 5)
+        self.assertTrue(no_more_work(pool))
+
+        # # Test Case 4: Customized Headers
+        headers = {
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9,zh-TW;q=0.8,zh;q=0.7,zh-CN;q=0.6,ja;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0'
+        }
+        for i in range(5):
+            pool.add_task('https://httpbin.org/headers', headers=headers)
+        results = pool.work()
+        for name, res in results.items():
+            hdr = json.loads(res[0].to_json()['body'])['headers']
+            self.assertEqual(hdr['Accept'], '*/*')
+            self.assertEqual(hdr['Accept-Language'], 'en-US,en;q=0.9,zh-TW;q=0.8,zh;q=0.7,zh-CN;q=0.6,ja;q=0.5')
+            self.assertEqual(hdr['Accept-Encoding'], 'gzip, deflate, br')
+        self.assertTrue(no_more_work(pool))
+        p.terminate()
+
+    def test_work_get_onion(self):
+        sessions = []
+        p = Proxy()
+        p.run()
+
+        for i in range(3):
+            sessions.append(Session(shared_proxy=p, name='session-'+str(i)))
+        pool = SessionPool(workers=sessions)
+
+        urls = [
+            'http://msydqstlz2kzerdg.onion',
+            'http://money4uitwxrt2us.onion',
+            'http://money4uitwxrt2usNeverExist.onion',
+            'https://www.google.com/'
+        ]
+
+        for i, url in enumerate(urls):
+            sess_name = 'session-'+str(i)
+            if i < 3:
+                pool.add_task(url, assigned=sess_name, is_onion=True)
+            else:
+                pool.add_task(url, assigned='session-2', is_onion=True)    
+        
+        results = pool.work(30)
+
+        p.terminate()
+        index = 0
+        num_results = 0
+        for name, res in results.items():
+            sess_name = 'session-'+str(index)
+            num_results += len(res)
+            if sess_name == 'session-2':
+                self.assertEqual(res[0], None)
+                self.assertEqual(res[1], None)
+            else:
+                self.assertEqual(res[0].status, 200)
+            if index < 2:
+                index += 1
+
+        self.assertEqual(4, num_results)
+
+
+    def test_work_post(self):
+        sessions = []
+        p = Proxy()
+        p.run()
+
+        for i in range(3):
+            sessions.append(Session(shared_proxy=p))
+        pool = SessionPool(workers=sessions)
+
+        test_post_data = [{'1':'1'}, {'2':'2'}, {'3':'3'}, {'4':'4'}, {'5':'5'}]
+        for d in test_post_data:
+            pool.add_task('https://httpbin.org/post', method='POST', data=d)
+              
+        results = pool.work()
+        p.terminate()
+
+        for name, res in results.items():
+            for r in res:
+                r = r.to_json()
+                data = json.loads(r['body'])['form']
+                if data in test_post_data:
+                    self.assertTrue(True)
+                else:
+                    self.assertTrue(False)
+
+        self.assertTrue(no_more_work(pool))
+
+    def test_work_post_onion(self):
+        sessions = []
+        p = Proxy()
+        p.run()
+
+        for i in range(3):
+            sessions.append(Session(shared_proxy=p, name='session-'+str(i)))
+        pool = SessionPool(workers=sessions)
+
+        test_urls = [
+            'http://pms5n4czsmblkcjl.onion/cart.php',
+            'http://pms5n4czsmblkcjlneverexist.onion/cart.php',
+            'https://httpbin.org/post'
+        ]
+        test_post_data = [
+            { 'id': 100, 'add': 'action', 'text': 2 },
+            { 'id': 100, 'add': 'action', 'text': 2 },
+            { 1:1, 2:2 }
+        ]
+
+        # Only Session 0 has valid url to post.
+        for sess_ind, (url, post_data) in enumerate(zip(test_urls, test_post_data)):
+            sess_name = 'session-' + str(sess_ind)
+            pool.add_task(url, method='POST', is_onion=True, data=post_data, assigned=sess_name)
+
+        results = pool.work()
+        p.terminate()
+        num_results = 0
+        for name, res in results.items():
+            num_results += len(res)
+            if name == 'session-0':
+                self.assertEqual(res[0].status, 200)
+            else:
+                self.assertEqual(res[0], None)
+        self.assertEqual(num_results, 3)
+        self.assertTrue(no_more_work(pool))
+
+    def test_work_head(self):
+        sessions = []
+        p = Proxy()
+        p.run()
+
+        for i in range(3):
+            sessions.append(Session(shared_proxy=p))
+        pool = SessionPool(workers=sessions)
+
+        for i in range(5):
+            pool.add_task('https://now.httpbin.org', method='HEAD')
+        results = pool.work()
+        p.terminate()
+
+        for name, res in results.items():
+            for r in res:
+                r = r.to_json()
+                self.assertEqual('', r['body'])
+        self.assertTrue(no_more_work(pool))
+
+    def test_work_login(self):
+
+        p = Proxy()
+        p.run()
+
+        # Test Case: Using a worker pool to finish a Login process
+        print('username: %s' % test_settings.PYPI_USERNAME)
+        print('password: %s' % test_settings.PYPI_PASSWORD)
+        login = {
+            'action' : 'login_form',
+            'nonce'  :  test_settings.PYPI_NONCE,
+            'username': test_settings.PYPI_USERNAME,
+            'password': test_settings.PYPI_PASSWORD
+        }
+
+        session = Session(
+            shared_proxy=p, cookie_path='test_data/cookies.txt', 
+            redirect=True, name='test-login')
+
+        sessions = []
+        for i in range(2):
+            sessions.append(Session(shared_proxy=p))
+
+        pool = SessionPool(workers=[session] + sessions)
+        pool.add_task(
+            'https://pypi.python.org/pypi', data=login, method='POST', assigned='test-login')
+        pool.add_task(
+            'https://pypi.python.org/pypi?%3Aaction=user_form', assigned='test-login')
+
+        results = pool.work(30)
+        p.terminate()
+
+        for s, r in results.items():
+            if len(r) == 2:
+                self.assertEqual(s, 'test-login')
+            for _r in r:
+                log_status = get_logstatus(_r.body)
+                self.assertEqual(log_status, 'Logout')
+                self.assertEqual(_r.status, 200)
+
+    def test_get_worker_by_index(self):
+        sessions = []
+        sessions_names = []
+        p = Proxy()
+        p.run()
+
+        for i in range(3):
+            sess = Session(shared_proxy=p)
+            sessions_names.append(sess.name)
+            sessions.append(sess)
+        pool = SessionPool(workers=sessions)
+
+        # Test Case 1: Make sure every session is accessible
+        for i in range(3):
+            sess = pool.get_worker_by_index(i)
+            self.assertEqual(sess, sessions[i])
+
+        # Test Case 2: Get a session with invalid index
+        sess = pool.get_worker_by_index(100)
+        self.assertEqual(None, sess)
+
+        p.terminate()
+
+
+    def test_get_worker_by_name(self):
+        sessions = []
+        sessions_names = ['Petter', 'Marry', 'MotherFucker']
+        p = Proxy()
+        p.run()
+
+        for name in sessions_names:
+            sess = Session(shared_proxy=p, name=name)
+            sessions.append(sess)
+
+        pool = SessionPool(workers=sessions)
+
+        for i in range(len(sessions_names)):
+            sess = pool.get_worker_by_name(sessions_names[i])
+            self.assertEqual(sessions[i], sess)
+
+        p.terminate()
+
+    def test_terminate_all(self):
+        sessions = self.gen_sessions(3)
+        pool = SessionPool(workers=sessions)
+        pool.terminate_all()
+
+        # Test Case 1: Reexecute the sessions to check if os error exception
+        for s in sessions:
+            r = s.get('https://www.google.com')
+            self.assertEqual(r, None)
+
+    def test_terminate_session_by_index(self):
+        sessions = self.gen_sessions(3)
+        pool = SessionPool(workers=sessions)
+
+        # Test Case 1: Delete a session with valid index
+        index = 2
+        del_res = pool.terminate_session_by_index(index)
+        sess = pool.get_worker_by_index(2)
+        r = sess.get('https://www.google.com')
+        self.assertEqual(r, None)
+        self.assertTrue(del_res)
+
+        # Test Case 2: Delete a seesion with invalid index
+        index = 3
+        del_res = pool.terminate_session_by_index(3)
+        self.assertFalse(del_res)
+
+        pool.terminate_all()
+
+    def test_terminate_session_by_name(self):
+        pass
+
 
 def main():
     unittest.main()
