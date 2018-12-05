@@ -10,7 +10,8 @@ import requests
 import lxml.html
 from lxml import cssselect
 
-from sneak.Http import Session, SessionPool, default_curl
+from sneak.Http import Session, HttpWorkerPool, default_curl
+>>>>>>> Stashed changes
 from sneak.Tor  import Proxy
 from test_data  import test_settings
 
@@ -33,7 +34,7 @@ class TestSession(unittest.TestCase):
 
         # 20170211 Y.D. Test if the user agent works or not
         r2 = s.get('https://httpbin.org/ip', user_agent=default_curl)
-        user_agent = s.req_headers['User-Agent']
+        user_agent = s.req_headers['user-agent']
 
         # 20170212 Y.D. Tests for Shared Proxies
         shared_proxy = s.proxy
@@ -72,6 +73,7 @@ class TestSession(unittest.TestCase):
         r7 = s2.get_onion('https://www.google.com/')
         s.proxy.terminate()
 
+
         proxy = Proxy()
         proxy.run()
         s3 = Session(shared_proxy=proxy)
@@ -96,16 +98,49 @@ class TestSession(unittest.TestCase):
 
     def test_set_headers(self):
 
-        user_agent = 'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0'
         headers = {
             'Accept': '*/*',
             'Accept-Language': '',
-            'Accept-Encoding': '',
-            'User-Agent': user_agent   
+            'Accept-Encoding': ''
         }
+        user_agent = 'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0'
 
         s = Session()
-        s.cUrl.setopt(pycurl.VERBOSE, True)
+        # s.cUrl.setopt(pycurl.VERBOSE, True)
+
+        # Test Case 1. Set two different settings with different APIs.
+        r0 = s.get('https://httpbin.org/anything', headers=headers, user_agent=user_agent)
+
+        # 20170211 Y.D. Add a new test to make sure request headers setting is correct
+        q0 = s.req_headers 
+
+        s.set_headers(headers=headers, user_agent=user_agent)
+        r1 = s.get('https://httpbin.org/anything')
+
+        # 20170211 Y.D. Add a new test to make sure request headers setting is correct
+        q1 = s.req_headers 
+
+        r0_body = json.loads(r0.body)
+        r1_body = json.loads(r1.body)
+        pprint.pprint(r0_body['headers'], indent=4)
+        pprint.pprint(r1_body['headers'], indent=4)
+
+        # Test Case 2. Use the same setting and test again.
+        r2 = s.get('https://httpbin.org/anything')
+        r2_body = json.loads(r2.body)
+        pprint.pprint(r2_body['headers'], indent=4)
+
+        # Test Case 3. Change accept format 
+        headers['Accept'] = \
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8'
+        r3 = s.set_headers(headers)
+        r3 = s.get('https://httpbin.org/anything')
+        r3_body = json.loads(r3.body)
+        pprint.pprint(r3_body['headers'], indent=4)
+
+        # Test Case 4. 
+        r4 = s.post('https://httpbin.org/post', data={1:1, 2:2}, 
+            headers=headers, user_agent=user_agent)
 
         # Test Case 1. Set two different settings with different APIs.
         r0 = s.get('https://httpbin.org/anything', headers=headers)
@@ -146,17 +181,14 @@ class TestSession(unittest.TestCase):
         r5_body = json.loads(r5.body)
         s.proxy.terminate()
 
+        # 20170211 Y.D. New Test for request headers
         self.assertEqual(q0, headers)
         self.assertEqual(q1, headers)
 
         self.assertEqual(r0_body['headers'], r1_body['headers'])
         self.assertEqual(r1_body['headers'], r2_body['headers'])
         self.assertNotEqual(r0_body['headers'], r3_body['headers'])
-
         self.assertEqual(200, r4.status)
-        self.assertEqual(r5_body['user-agent'], user_agent)
-
-
 
     def test_renew_identity(self):
         '''test_renew_identity
@@ -388,32 +420,12 @@ class TestSession(unittest.TestCase):
         self.assertEqual(log_status, 'Logout')
 
 
-# The functions of SessionPool are multithreading
+
+# The functions of HttpWorkerPool are multithreading
 # Thus, the tests are not normal unit tests.
-def no_more_work(pool):
-    no_more_work = True
-    for worker in pool.workers.items():
-        if worker[1]['prepared'].empty() != True:
-            no_more_work = False
-            break
-    return no_more_work
+class TestHttpWorkerPool(unittest.TestCase):
 
-class TestSessionPool(unittest.TestCase):
-
-    # 20180309 Y.D.
-    def gen_sessions(self, num_sessions):
-        sessions = []
-        socks_port = 9050
-        control_port = 9151
-        for i in range(num_sessions):
-            s = Session(
-                socks_port=socks_port, control_port=control_port, tor_path='tor_'+str(i))
-            sessions.append(s)
-            socks_port += 100
-            control_port += 100
-        return sessions
-
-    def test_work_get(self):
+    def test_work(self):
 
         sessions = []
         p = Proxy()
@@ -421,7 +433,7 @@ class TestSessionPool(unittest.TestCase):
 
         for i in range(3):
             sessions.append(Session(shared_proxy=p))
-        pool = SessionPool(workers=sessions)
+        pool = HttpWorkerPool(workers=sessions)
 
         # Test Case 1: GET
         for i in range(5):
@@ -442,9 +454,42 @@ class TestSessionPool(unittest.TestCase):
             self.assertNotEqual(epochs[i], epochs[i+1])
         
         # Check the working queue is empty
-        self.assertTrue(no_more_work(pool))
+        for worker in pool.workers.items():
+            self.assertTrue(worker[1]['prepared'].empty())
         
-        # Test Case 2: Assigin Testing
+        # Test Case 2: POST
+        test_post_data = [{'1':'1'}, {'2':'2'}, {'3':'3'}, {'4':'4'}, {'5':'5'}]
+        for d in test_post_data:
+            pool.add_task('https://httpbin.org/post', method='POST', data=d)
+              
+        results = pool.work()
+        
+        for name, res in results.items():
+            for r in res:
+                r = r.to_json()
+                data = json.loads(r['body'])['form']
+                if data in test_post_data:
+                    self.assertTrue(True)
+                else:
+                    self.assertTrue(False)
+
+        for worker in pool.workers.items():
+            self.assertTrue(worker[1]['prepared'].empty())
+
+        # Test Case 3: HEAD
+        for i in range(5):
+            pool.add_task('https://now.httpbin.org', method='HEAD')
+        results = pool.work()
+        
+        for name, res in results.items():
+            for r in res:
+                r = r.to_json()
+                self.assertEqual('', r['body'])
+
+        for worker in pool.workers.items():
+            self.assertTrue(worker[1]['prepared'].empty())
+
+        # Test Case 4: Assigin Testing
         names = []
         for sess in sessions:
             names.append(sess.name)
@@ -460,9 +505,11 @@ class TestSessionPool(unittest.TestCase):
         for name, meta in pool.workers.items():
             if name != assigned_session:
                 self.assertEqual(len(results[name]), 0)
-        self.assertTrue(no_more_work(pool))
 
-        # Test Case 3: Check 
+        for worker in pool.workers.items():
+            self.assertTrue(worker[1]['prepared'].empty())
+
+        # Test Case 5: 
         for i in range(5):
             pool.add_task('https://now.httpbin.org')
         results = pool.work(0.001)
@@ -473,151 +520,7 @@ class TestSessionPool(unittest.TestCase):
             for _r in r:
                 self.assertEqual(_r.status, 200)
         self.assertEqual(result_num, 5)
-        self.assertTrue(no_more_work(pool))
-
-        # # Test Case 4: Customized Headers
-        headers = {
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.9,zh-TW;q=0.8,zh;q=0.7,zh-CN;q=0.6,ja;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0'
-        }
-        for i in range(5):
-            pool.add_task('https://httpbin.org/headers', headers=headers)
-        results = pool.work()
-        for name, res in results.items():
-            hdr = json.loads(res[0].to_json()['body'])['headers']
-            self.assertEqual(hdr['Accept'], '*/*')
-            self.assertEqual(hdr['Accept-Language'], 'en-US,en;q=0.9,zh-TW;q=0.8,zh;q=0.7,zh-CN;q=0.6,ja;q=0.5')
-            self.assertEqual(hdr['Accept-Encoding'], 'gzip, deflate, br')
-        self.assertTrue(no_more_work(pool))
         p.terminate()
-
-    def test_work_get_onion(self):
-        sessions = []
-        p = Proxy()
-        p.run()
-
-        for i in range(3):
-            sessions.append(Session(shared_proxy=p, name='session-'+str(i)))
-        pool = SessionPool(workers=sessions)
-
-        urls = [
-            'http://msydqstlz2kzerdg.onion',
-            'http://money4uitwxrt2us.onion',
-            'http://money4uitwxrt2usNeverExist.onion',
-            'https://www.google.com/'
-        ]
-
-        for i, url in enumerate(urls):
-            sess_name = 'session-'+str(i)
-            if i < 3:
-                pool.add_task(url, assigned=sess_name, is_onion=True)
-            else:
-                pool.add_task(url, assigned='session-2', is_onion=True)    
-        
-        results = pool.work(30)
-
-        p.terminate()
-        index = 0
-        num_results = 0
-        for name, res in results.items():
-            sess_name = 'session-'+str(index)
-            num_results += len(res)
-            if sess_name == 'session-2':
-                self.assertEqual(res[0], None)
-                self.assertEqual(res[1], None)
-            else:
-                self.assertEqual(res[0].status, 200)
-            if index < 2:
-                index += 1
-
-        self.assertEqual(4, num_results)
-
-
-    def test_work_post(self):
-        sessions = []
-        p = Proxy()
-        p.run()
-
-        for i in range(3):
-            sessions.append(Session(shared_proxy=p))
-        pool = SessionPool(workers=sessions)
-
-        test_post_data = [{'1':'1'}, {'2':'2'}, {'3':'3'}, {'4':'4'}, {'5':'5'}]
-        for d in test_post_data:
-            pool.add_task('https://httpbin.org/post', method='POST', data=d)
-              
-        results = pool.work()
-        p.terminate()
-
-        for name, res in results.items():
-            for r in res:
-                r = r.to_json()
-                data = json.loads(r['body'])['form']
-                if data in test_post_data:
-                    self.assertTrue(True)
-                else:
-                    self.assertTrue(False)
-
-        self.assertTrue(no_more_work(pool))
-
-    def test_work_post_onion(self):
-        sessions = []
-        p = Proxy()
-        p.run()
-
-        for i in range(3):
-            sessions.append(Session(shared_proxy=p, name='session-'+str(i)))
-        pool = SessionPool(workers=sessions)
-
-        test_urls = [
-            'http://pms5n4czsmblkcjl.onion/cart.php',
-            'http://pms5n4czsmblkcjlneverexist.onion/cart.php',
-            'https://httpbin.org/post'
-        ]
-        test_post_data = [
-            { 'id': 100, 'add': 'action', 'text': 2 },
-            { 'id': 100, 'add': 'action', 'text': 2 },
-            { 1:1, 2:2 }
-        ]
-
-        # Only Session 0 has valid url to post.
-        for sess_ind, (url, post_data) in enumerate(zip(test_urls, test_post_data)):
-            sess_name = 'session-' + str(sess_ind)
-            pool.add_task(url, method='POST', is_onion=True, data=post_data, assigned=sess_name)
-
-        results = pool.work()
-        p.terminate()
-        num_results = 0
-        for name, res in results.items():
-            num_results += len(res)
-            if name == 'session-0':
-                self.assertEqual(res[0].status, 200)
-            else:
-                self.assertEqual(res[0], None)
-        self.assertEqual(num_results, 3)
-        self.assertTrue(no_more_work(pool))
-
-    def test_work_head(self):
-        sessions = []
-        p = Proxy()
-        p.run()
-
-        for i in range(3):
-            sessions.append(Session(shared_proxy=p))
-        pool = SessionPool(workers=sessions)
-
-        for i in range(5):
-            pool.add_task('https://now.httpbin.org', method='HEAD')
-        results = pool.work()
-        p.terminate()
-
-        for name, res in results.items():
-            for r in res:
-                r = r.to_json()
-                self.assertEqual('', r['body'])
-        self.assertTrue(no_more_work(pool))
 
     def test_work_login(self):
 
@@ -642,7 +545,7 @@ class TestSessionPool(unittest.TestCase):
         for i in range(2):
             sessions.append(Session(shared_proxy=p))
 
-        pool = SessionPool(workers=[session] + sessions)
+        pool = HttpWorkerPool(workers=[session] + sessions)
         pool.add_task(
             'https://pypi.python.org/pypi', data=login, method='POST', assigned='test-login')
         pool.add_task(
@@ -660,6 +563,7 @@ class TestSessionPool(unittest.TestCase):
                 self.assertEqual(_r.status, 200)
 
     def test_get_worker_by_index(self):
+
         sessions = []
         sessions_names = []
         p = Proxy()
@@ -669,17 +573,11 @@ class TestSessionPool(unittest.TestCase):
             sess = Session(shared_proxy=p)
             sessions_names.append(sess.name)
             sessions.append(sess)
-        pool = SessionPool(workers=sessions)
+        pool = HttpWorkerPool(workers=sessions)
 
-        # Test Case 1: Make sure every session is accessible
         for i in range(3):
             sess = pool.get_worker_by_index(i)
             self.assertEqual(sess, sessions[i])
-
-        # Test Case 2: Get a session with invalid index
-        sess = pool.get_worker_by_index(100)
-        self.assertEqual(None, sess)
-
         p.terminate()
 
 
@@ -693,46 +591,13 @@ class TestSessionPool(unittest.TestCase):
             sess = Session(shared_proxy=p, name=name)
             sessions.append(sess)
 
-        pool = SessionPool(workers=sessions)
+        pool = HttpWorkerPool(workers=sessions)
 
         for i in range(len(sessions_names)):
             sess = pool.get_worker_by_name(sessions_names[i])
             self.assertEqual(sessions[i], sess)
 
         p.terminate()
-
-    def test_terminate_all(self):
-        sessions = self.gen_sessions(3)
-        pool = SessionPool(workers=sessions)
-        pool.terminate_all()
-
-        # Test Case 1: Reexecute the sessions to check if os error exception
-        for s in sessions:
-            r = s.get('https://www.google.com')
-            self.assertEqual(r, None)
-
-    def test_terminate_session_by_index(self):
-        sessions = self.gen_sessions(3)
-        pool = SessionPool(workers=sessions)
-
-        # Test Case 1: Delete a session with valid index
-        index = 2
-        del_res = pool.terminate_session_by_index(index)
-        sess = pool.get_worker_by_index(2)
-        r = sess.get('https://www.google.com')
-        self.assertEqual(r, None)
-        self.assertTrue(del_res)
-
-        # Test Case 2: Delete a seesion with invalid index
-        index = 3
-        del_res = pool.terminate_session_by_index(3)
-        self.assertFalse(del_res)
-
-        pool.terminate_all()
-
-    def test_terminate_session_by_name(self):
-        pass
-
 
 def main():
     unittest.main()

@@ -22,7 +22,7 @@ ONION_RE    = re.compile(r'https?://[a-zA-Z0-9\.]+.onion')
 CHARSET_RE  = re.compile(r'charset=(?P<encoding>.*)')
 HASHCODE_RE = re.compile(r'(?P<code>16:\w{20,})\n?')
 
-# 20180211 Y.D.: 
+# 20170211 Y.D.: 
 default_curl = re.search(r'curl\/\d+\.\d+\.\d+', pycurl.version)
 default_curl = default_curl.group()
 
@@ -161,13 +161,13 @@ class Response():
         try:
             if 'content-encoding' in self.headers:
                 line = 'start decompressing: %s' % self.headers['content-encoding']
-                line = term.format(line,     term.Color.ORANGE)
-                flag = term.format('Decode', term.Color.ORANGE)
+                line = term.format(line,     term.Color.BLUE)
+                flag = term.format('Decode', term.Color.BLUE)
                 display_msg(line, flag)
                 body = zlib.decompress(body, zlib.MAX_WBITS|16)
         except Exception as e:
             e = term.format(str(e), term.Color.RED)
-            flag = term.format('ERROR', term.Color.RED)
+            flag = term.format('Error', term.Color.RED)
             display_msg(e, flag)
         self.body = body.decode(self.charset, errors='replace')
 
@@ -231,7 +231,7 @@ class TorSessionMixin(Proxy):
         if clear_headers:
             self._init_cUrl()
         else:
-            self._init_cUrl(headers=self.req_headers)
+            self._init_cUrl(headers=self.req_headers, user_agent=self.user_agent)
         
 class Session(TorSessionMixin):
     '''
@@ -286,26 +286,31 @@ class Session(TorSessionMixin):
         * redirect: < bool >  
         Allow the redirect or not.        
 
-        * headers: < dict >  
+        headers: < dict >  
         The request headers the user want to set in the session.  
         The default value {}, which means pycurl will use curl's value as default.  
         
-        * keep_alive: < bool >  
+        user_agent: < str >  
+        The agent the user want to prentent. Without setting, the default is a *curl*.  
+
+        keep_alive: < bool >  
         Keep the connection alive after the transmission is succeed.  
 
-        * name: < string >  
+        name: < string >  
         The name of session for keep tracking its work.  
+
 
     '''
     def __init__(
         self, socks_port=9050, control_port=9051, proxy_host='localhost', exit_country_code='us', 
         tor_path='tor_0', cookie='', cookie_path='', keep_alive=False, redirect=False,
-        headers={}, ssl_version='tls_1_2', ssl_verifypeer=True, ssl_verifyhost=True,
+        headers={}, user_agent='', ssl_version='tls_1_2', ssl_verifypeer=True, ssl_verifyhost=True,
         shared_proxy=None, name=''):
         self.cUrl = None
         self.cookie   = cookie 
         self.redirect = redirect 
         self.keep_alive  = keep_alive
+        self.user_agent  = user_agent
         self.req_headers = {}
         self.res_headers = {}
         self.cookie_path = cookie_path
@@ -327,49 +332,55 @@ class Session(TorSessionMixin):
             stamp = hashlib.sha256(stamp)
             self.name = stamp.hexdigest()[:16]
 
-        self._init_cUrl(headers=headers)
-        
-    def set_headers(self, headers={}, keep_alive=False):
+
+        self._init_cUrl(headers=headers, user_agent=user_agent)
+
+    def set_headers(self, headers={}, user_agent='', keep_alive=False):
         '''
-        #### Session.set_headers(headers={}, keep_alive=False)
+        #### set_headers()
         ***description***  
             set_headers function is used to set session's headers and user agent.  
 
         ***params***  
-            * headers: < dict >  
+            headers: < dict >  
             Headers that want to be set in session.  
 
-            * keep_alive: < bool >  
+            user_agent: < str >  
+            The agent you want to pretent to be.  
+
+            keep_alive: < bool >  
             Keep the connection alive or not.  
             The default setting is False to make sure not use the same exit node all the time  
         '''
         if keep_alive:
             headers.update({'Connection': 'keep_alive'})
-        
-        _headers = []
-        for key, hdr in headers.items():
-            self.req_headers[key] = hdr
-            _headers.append('{0}: {1}'.format(key, hdr))
-        self.cUrl.setopt(pycurl.HTTPHEADER, _headers)
+        self.req_headers = headers
 
+        headers = list('%s: %s' % (key, value) for key, value in headers.items())
+        self.cUrl.setopt(pycurl.HTTPHEADER, headers)
 
-    def _init_cUrl(self, headers={}):
-        '''_
+        # 20180211 Y.D.:
+        if len(user_agent) == 0:
+            self.req_headers.update({'user-agent': default_curl})
+        else:
+            # 20170211 Y.D.: 
+            self.req_headers.update({'user-agent': user_agent})
+
+            self.cUrl.setopt(pycurl.USERAGENT, user_agent) 
+
+    def _init_cUrl(self, headers={}, user_agent=''):
+        '''
         #### _init_cUrl()
         ***description***  
             Prepare the curl for http operations.
             About security settings
-        _'''
+        '''
         # Initialise the curl and its method to parse headers.
         # We only need to set the parse header function once.
         self.cUrl = pycurl.Curl()
         self.cUrl.setopt(pycurl.HEADER, True)
         self.cUrl.setopt(pycurl.HEADERFUNCTION, self._parse_header)
-
-        # 20180221 Y.D.: NEW: Rewrite the logic of setting headers
-        if 'User-Agent' not in headers:
-            headers.update({'User-Agent': default_curl})
-        self.set_headers(headers)
+        self.set_headers(headers, user_agent, self.keep_alive)
 
         # Set up the ssl settings
         if self.ssl_version == 'tls_1_2':
@@ -428,7 +439,7 @@ class Session(TorSessionMixin):
             the hidden services, however, has to be resolved by socks server locally.
 
         ***params***  
-            * method: < string >  
+            method: < string >  
             The names of Http method such as GET, POST, HEAD.  
 
             * removed_dns: < bool >  
@@ -456,7 +467,7 @@ class Session(TorSessionMixin):
         return decorator
 
     def _set_headers(method, removed_dns):
-        '''_
+        '''
         #### _set_headers()
         ***description***
             Set the user-agent.  
@@ -470,12 +481,13 @@ class Session(TorSessionMixin):
             True:   The hostname has to be resolved by SOCKS server locally.
             False:  Hostname have to resolve by DNS servers. 
 
-        _'''
+        '''
         def decorator(fn):
-            def set_headers(self, url, headers={}, **kwargs):
-                
-                if headers != self.req_headers:
-                    self.set_headers(headers)
+            def set_headers(self, url, headers={}, user_agent='', **kwargs):
+
+                # 20170211 Y.D. If headers does not setup specifically. do not start set_headers()
+                if headers != {}:
+                    self.set_headers(headers, user_agent)
 
                 if method == 'GET' or method == 'HEAD':
                     return fn(self, url)
@@ -487,7 +499,7 @@ class Session(TorSessionMixin):
         return decorator
 
     def _is_onion(method):
-        '''_
+        '''
         #### _is_onion()
         ***description***  
             is_onion() is a decorator function to check if the url is onion site or not.  
@@ -497,7 +509,7 @@ class Session(TorSessionMixin):
             * f: < function >  
             The function that will be executed only the onion url is verified.  
 
-        _'''
+        '''
         def decorator(fn):
             def is_onion(self, url, **kwargs):
                 is_onion_service = False
@@ -507,7 +519,7 @@ class Session(TorSessionMixin):
                     line = term.format(
                         'The URL is not an onion. Please use get() instead', 
                             term.Color.RED)
-                    flag = term.format('ERROR', term.Color.RED)
+                    flag = term.format('Error', term.Color.RED)
                     display_msg(line, flag)
                     return None
 
@@ -521,7 +533,7 @@ class Session(TorSessionMixin):
         return decorator
         
     def _get(f):  
-        '''_
+        '''
         #### _get()
         ***description***
             _get() is the decorator function for get() and get_onion().  
@@ -538,7 +550,7 @@ class Session(TorSessionMixin):
             True: The hostname has to be resolved by SOCKS server.
             False:  Hostname probably can be resolved locally.  
 
-        _'''
+        '''
         def get(self, url):
             r = Response()
             b = BytesIO()
@@ -556,7 +568,7 @@ class Session(TorSessionMixin):
                 return r
             except Exception as e:
                 e = term.format(str(e), term.Color.RED)
-                flag = term.format('ERROR', term.Color.RED)
+                flag = term.format('Error', term.Color.RED)
                 display_msg(e, flag)
                 return 
         return get
@@ -571,11 +583,14 @@ class Session(TorSessionMixin):
             A GET HTTP method for non-hidden services.  
 
         ***params***  
-            * url: < string >  
+            url: < string >  
             The host's url which you want to get.  
 
-            * headers: < dict >
+            headers: < dict >
             Headers information.  
+
+            user_agent: < string >  
+            Set up the User Agent.  
 
         ***return***  
             r: < Response object >  
@@ -599,8 +614,11 @@ class Session(TorSessionMixin):
             An url of the hidden service. 
             The end of domain should be '.onion'.  
 
-            * headers: < dict >
+            headers: < dict >
             Headers information.  
+
+            user_agent: < string >  
+            Set up the User Agent.  
 
         ***return***  
             r: <Response object>
@@ -616,12 +634,12 @@ class Session(TorSessionMixin):
             Use pycurl to do HTTP POST method.
 
         ***params***  
-            * url: < string >  
+            url: < string >  
             Post a certain data on an url.  
 
-            * data: < dict >  
+            data: < dict >  
             The data that we want to send to the host.  
-        _'''
+        '''
         def post(self, url, data):
             r = Response()
             b = BytesIO()
@@ -642,7 +660,7 @@ class Session(TorSessionMixin):
                 return r
             except Exception as e:
                 e = term.format(str(e), term.Color.RED)
-                flag = term.format('ERROR', term.Color.RED)
+                flag = term.format('Error', term.Color.RED)
                 display_msg(e, flag)
                 return 
             
@@ -664,8 +682,11 @@ class Session(TorSessionMixin):
             * data: < dict >  
             The data which is used to post form. 
 
-            * headers: < dict >  
+            headers: < dict >  
             Headers information.  
+
+            user_agent: < string >  
+            Set up the User Agent.  
 
         ***return***  
             r: <Response object>
@@ -689,11 +710,14 @@ class Session(TorSessionMixin):
             * onion_url: < string >  
             The hidden service's url to do HTTP POST method.
 
-            * data: < dict >  
+            data: < dict >  
             The data which is used to post form.  
 
-            * headers: < dict >
+            headers: < dict >
             Headers information.  
+
+            user_agent: < string >  
+            Set up the User Agent.  
 
         ***return***  
             r: <Response object>
@@ -704,7 +728,7 @@ class Session(TorSessionMixin):
         return
 
     def _head(fn):
-        '''_
+        '''
         #### _head()
         ***description***
             Perform GET operation with NOBODY request.
@@ -718,7 +742,7 @@ class Session(TorSessionMixin):
             True: The hostname has to be resolved by SOCKS server.
             False:  Hostname probably can be resolved locally.
 
-        _'''
+        '''
         def head(self, url):
             r = Response()
             b = BytesIO()
@@ -731,10 +755,11 @@ class Session(TorSessionMixin):
                 r.set_headers_and_charset(self.res_headers)
                 r.set_value(self.cUrl)
                 r.body = ''
+                # self.cUrl.reset()
                 return r
             except Exception as e:
                 e = term.format(str(e), term.Color.RED)
-                flag = term.format('ERROR', term.Color.RED)
+                flag = term.format('Error', term.Color.RED)
                 display_msg(e, flag)
                 return 
         return head
@@ -749,11 +774,14 @@ class Session(TorSessionMixin):
             Send a HTTP Head on the light url.  
 
         ***params***  
-            * url: < string >
+            url: < string >
             The host's url which you want to head.  
 
-            * headers: < dict >
+            headers: < dict >
             Headers information.  
+
+            user_agent: < string >  
+            Set up the User Agent.   
 
         ***return***  
             r: <Response object>
@@ -761,6 +789,7 @@ class Session(TorSessionMixin):
             Otherwise, the None will be return. 
 
         '''
+
         return
 
     @_is_onion('HEAD')
@@ -790,7 +819,7 @@ class Session(TorSessionMixin):
         ***description***  
             Send a delete request.
         ***params***  
-            * url: < string >  
+            url: < string >  
             Where the delete request will be send to.
         '''
         pass
@@ -809,22 +838,9 @@ from functools import partial
 from threading import Thread, Event
 from collections import OrderedDict as odict
 
-class SessionPool():
-    '''
-    ### SessionPool
-    ***description***  
-        SessionPool are designed for conducting http jobs in sequence order. 
-        Multiple sessions are stored to handle the assigned tasks 
-        
-    ***params***  
-        * workers: < array <Session> >
-        The array of the sessions for http tasks.
 
-        * elapsed: < float >  
-        The gap time between each thread starting.  
+class HttpWorkerPool():
 
-
-    '''
     def __init__(self, workers, elapsed=.5):
 
         self.workers = odict()
@@ -842,12 +858,15 @@ class SessionPool():
 
         self.num_workers = len(workers)
         self.elapsed = elapsed
+
+        # 20170214 Y.D.:
         self.lock = Event()
 
     def _sort_worker_queue(self):
         '''_sort_worker_queue
         ***description***  
             The function is used to sort the workers according to the prepared working queue.  
+
         '''
         self.workers = odict(
             sorted(self.workers.items(), key=lambda x: x[1]['prepared'].qsize()))
@@ -896,48 +915,49 @@ class SessionPool():
         sess   = worker['session']
         return sess
 
-    def add_task(self, url, assigned='', method='GET', headers={}, data={}, is_onion=False):
+
+    def add_task(self, url, assigned='', method='GET', 
+        header={}, user_agent='', data={}, is_onion=False):
         '''   
         #### add_task()  
         ***description***  
             Add the Http task to the workers.  
         ***params***  
-            * url: < string >
+            url: < string >
             The host's url which you want to head.  
 
-            * assigned: < string >  
+            assigned: < string >  
             The session which user want to assign the job.  
 
-            * headers: < dict >
+            headers: < dict >
             Headers information.  
 
-            * data: < dict >  
+            data: < dict >  
             The data which is used to post form.  
-            
+
+            user_agent: < string >  
+            Set up the User Agent.  
         '''
         # The function for wrapper to call.
-        def task_get(session, result_queue, url, headers, is_onion=False):
-            display_msg('GET {}.'.format(url), 'INFO')
+        def task_get(session, result_queue, url, header, user_agent, is_onion=False):
             if is_onion:
-                res = session.get_onion(url, headers=headers)
+                res = session.get_onion(url, header=header, user_agent=user_agent)
             else:
-                res = session.get(url, headers=headers)
+                res = session.get(url, header=header, user_agent=user_agent)
             result_queue.put(res)
 
-        def task_post(session, result_queue, url, data, headers, is_onion=False):
-            display_msg('POST {} on {}.'.format(data, url), 'INFO')
+        def task_post(session, result_queue, url, data, header, user_agent, is_onion=False):
             if is_onion:
-                res = session.post_onion(url, data=data, headers=headers)
+                res = session.post_onion(url, data=data, header=header, user_agent=user_agent)
             else:
-                res = session.post(url, data=data, headers=headers)
+                res = session.post(url, data=data, header=header, user_agent=user_agent)
             result_queue.put(res)
 
-        def task_head(session, result_queue, url, headers, is_onion=False):
-            display_msg('HEAD {}.'.format(url), 'INFO')
+        def task_head(session, result_queue, url, header, user_agent, is_onion=False):
             if is_onion:
-                res = session.head_onion(url, headers=headers)
+                res = session.head_onion(url, header=header, user_agent=user_agent)
             else:
-                res = session.head(url, headers=headers)
+                res = session.head(url, header=header, user_agent=user_agent)
             result_queue.put(res)
 
         task = None
@@ -945,59 +965,48 @@ class SessionPool():
         if method == 'GET' and len(assigned) == 0:
             task = partial(
                 task_get, last_worker['session'], last_worker['finished'], 
-                url, headers, is_onion)
+                url, header, user_agent, is_onion)
             last_worker['prepared'].put(task)
         elif method == 'POST' and len(assigned) == 0:
             task = partial(
                 task_post, last_worker['session'], last_worker['finished'], 
-                url, data, headers, is_onion)
+                url, data, header, user_agent, is_onion)
             last_worker['prepared'].put(task)
         elif method == 'HEAD' and len(assigned) == 0:
             task = partial(
                 task_head, last_worker['session'], last_worker['finished'], 
-                url, headers, is_onion)
+                url, header, user_agent, is_onion)
             last_worker['prepared'].put(task)
         elif method == 'GET':
             task = partial(
                 task_get, 
                 self.workers[assigned]['session'], 
                 self.workers[assigned]['finished'], 
-                url, headers, is_onion)
+                url, header, user_agent, is_onion)
             self.workers[assigned]['prepared'].put(task)
         elif method == 'POST':
             task = partial(
                 task_post, 
                 self.workers[assigned]['session'], 
                 self.workers[assigned]['finished'], 
-                url, data, headers, is_onion)
+                url, data, header, user_agent, is_onion)
             self.workers[assigned]['prepared'].put(task)
         elif method == 'HEAD':
             task = partial(
                 task_head, 
                 self.workers[assigned]['session'], 
                 self.workers[assigned]['finished'], 
-                url, headers, is_onion)
+                url, header, user_agent, is_onion)
             self.workers[assigned]['prepared'].put(task)
 
         self._sort_worker_queue()
 
-    
-    def work(self, batch_size=10, timeout=60):
+    def work(self, timeout=60):
         '''
         #### work()  
         ***description***  
             The workers in the pool start their jobs.  
-
-        ***params***  
-            * timeout: < int >  
-            Set up the timeout seconds. Once the time is out, renew the session.  
-
-            * 
-
-        ***return***  
-            results: < dict >  
-            The results of working results are returned here.  
-            The keys are the name of the sessions; the values are the list of the results.  
+        
         '''
         self.lock.set()
 
@@ -1059,37 +1068,3 @@ class SessionPool():
                     result = work['finished'].get()
                     results[name].append(result)
         return results
-
-    # 20180309 Y.D.
-    def terminate_session_by_name(self, name):
-        sess = self.get_workekr_by_name(name)
-
-        pass
-
-    def terminate_session_by_index(self, index):
-        sess = self.get_worker_by_index(index)
-        if sess:
-            # (name, sess) = next(sess.items())
-            sess.proxy.terminate()
-            msg = 'Session {}, Name: {} is terminated successfully.'.format(index, sess.name)
-            display_msg(msg, 'UPDATE')
-            return True
-        else:
-            display_msg('Session {} does not exist'.format(index), 'ERROR')
-            return False
-
-    # 20180309 Y.D.
-    def terminate_all(self):
-        for worker_id, worker in self.workers.items():
-            worker['session'].proxy.terminate()
-
-
-        
-
-
-            
-
-
-
-
-    
