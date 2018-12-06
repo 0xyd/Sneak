@@ -734,65 +734,65 @@ class TestNetMap(unittest.TestCase):
     def test_scan(self):
         # Test Case 1: Usual domain
         netmap = NetMap()
-        # r = netmap.scan('www.google.com', [80, 443])
+        r = netmap.scan('www.google.com', [80, 443])
         
-        # self.assertTrue('www.google.com' in r['host'])
-        # self.assertEqual(r['services'][0][0], '80/tcp')
-        # self.assertEqual(r['services'][0][1], 'open')
-        # self.assertEqual(r['services'][0][2], 'http')
-        # self.assertEqual(r['services'][1][0], '443/tcp')
-        # self.assertEqual(r['services'][1][1], 'open')
-        # self.assertEqual(r['services'][1][2], 'https')
+        self.assertTrue('www.google.com' in r['host'])
+        self.assertEqual(r['services'][0][0], '80/tcp')
+        self.assertEqual(r['services'][0][1], 'open')
+        self.assertEqual(r['services'][0][2], 'http')
+        self.assertEqual(r['services'][1][0], '443/tcp')
+        self.assertEqual(r['services'][1][1], 'open')
+        self.assertEqual(r['services'][1][2], 'https')
         
 
-        # Test Case 2: Ip address
-        # r = netmap.scan('216.58.222.14')
-        # self.assertEqual(r['host'], '216.58.222.14')
-        # self.assertEqual(r['services'][0][0], '80/tcp')
-        # self.assertEqual(r['services'][0][1], 'open')
-        # self.assertEqual(r['services'][0][2], 'http')
-        # self.assertEqual(r['services'][1][0], '443/tcp')
-        # self.assertEqual(r['services'][1][1], 'open')
-        # self.assertEqual(r['services'][1][2], 'https')
+        Test Case 2: Ip address
+        r = netmap.scan('216.58.222.14')
+        self.assertEqual(r['host'], '216.58.222.14')
+        self.assertEqual(r['services'][0][0], '80/tcp')
+        self.assertEqual(r['services'][0][1], 'open')
+        self.assertEqual(r['services'][0][2], 'http')
+        self.assertEqual(r['services'][1][0], '443/tcp')
+        self.assertEqual(r['services'][1][1], 'open')
+        self.assertEqual(r['services'][1][2], 'https')
 
 
 
         # Test Case 3: Onion site
-        # r = netmap.scan('facebookcorewwwi.onion', [43, 80, 443])
-        # self.assertTrue('facebookcorewwwi.onion' in r['host'])
-        # self.assertEqual(r['services'][0][0], '80/tcp')
-        # self.assertEqual(r['services'][0][1], 'open')
-        # self.assertEqual(r['services'][0][2], 'http')
-        # self.assertEqual(r['services'][1][0], '443/tcp')
-        # self.assertEqual(r['services'][1][1], 'open')
-        # self.assertEqual(r['services'][1][2], 'https')
+        r = netmap.scan('facebookcorewwwi.onion', [80, 443])
+        self.assertTrue('facebookcorewwwi.onion' in r['host'])
+        self.assertEqual(r['services'][0][0], '80/tcp')
+        self.assertEqual(r['services'][0][1], 'open')
+        self.assertEqual(r['services'][0][2], 'http')
+        self.assertEqual(r['services'][1][0], '443/tcp')
+        self.assertEqual(r['services'][1][1], 'open')
+        self.assertEqual(r['services'][1][2], 'https')
 
         from pprint import pprint
         pprint(r, indent=4)
 
         # # Test Case 4: Stupid Ip addresses
-        # netmap.scan('216.58.222.14.216.58.222.14')
-        # netmap.scan('2165822214')
-        # netmap.scan('2165.8222.14')
+        netmap.scan('216.58.222.14.216.58.222.14')
+        netmap.scan('2165822214')
+        netmap.scan('2165.8222.14')
         netmap.terminate()
 
-        # # Test Case 5: If proxies are used already. Does netmap display error message?
-        # p0 = Proxy(socks_port=9050, control_port=9051, tor_path='tor_0')
-        # p1 = Proxy(socks_port=9150, control_port=9151, tor_path='tor_1')
-        # p2 = Proxy(socks_port=9250, control_port=9251, tor_path='tor_2')
+        # Test Case 5: If proxies are used already. Does netmap display error message?
+        p0 = Proxy(socks_port=9050, control_port=9051, tor_path='tor_0')
+        p1 = Proxy(socks_port=9150, control_port=9151, tor_path='tor_1')
+        p2 = Proxy(socks_port=9250, control_port=9251, tor_path='tor_2')
 
-        # p0.run()
-        # p1.run()
-        # p2.run()
-        # p0.auth_controller()
-        # p1.auth_controller()
-        # p2.auth_controller()
+        p0.run()
+        p1.run()
+        p2.run()
+        p0.auth_controller()
+        p1.auth_controller()
+        p2.auth_controller()
 
-        # netmap = NetMap()
+        netmap = NetMap()
 
-        # p0.terminate()
-        # p1.terminate()
-        # p2.terminate()
+        p0.terminate()
+        p1.terminate()
+        p2.terminate()
 
 
 
