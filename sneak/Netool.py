@@ -16,8 +16,11 @@ from stem.util import system, term
 from stem.control import Controller
 from stem.descriptor.networkstatus import Descriptor
 
-from Tor  import Proxy, display_msg, MESSAGE_FLAGS_AND_COLOR
-from Http import Session as HttpSession
+from sneak.Tor  import Proxy, display_msg, MESSAGE_FLAGS_AND_COLOR
+from sneak.Http import Session as HttpSession
+
+# from Tor  import Proxy, display_msg, MESSAGE_FLAGS_AND_COLOR
+# from Http import Session as HttpSession
 
 
 class Router():
@@ -491,8 +494,8 @@ class NetMap(NetMapMixin):
 		cmd = ['proxychains4', '-f', self.config, 'nmap', '-n', '-PS', '-sT', '-p']
 
 		# 20180227 Y.D. If there is no proxies available...
-		if not self.is_proxychain_available():
-			return
+		# if not self.is_proxychain_available():
+		# 	return
 
 		if hostname_regex.search(host):
 			cmd.extend([ports, host])

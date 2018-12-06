@@ -138,7 +138,7 @@ class Proxy():
 			timestamp = str(time.time()).encode('utf8')
 			self.name = hashlib.md5(timestamp).hexdigest()[:8]
 
-	def run(self, timeout=60):
+	def run(self, timeout=300):
 		'''
 		#### run
 		***description***  
@@ -152,12 +152,14 @@ class Proxy():
 		try:
 			self.process  = tor_process.launch_tor_with_config(
 				config={
-					'SocksPort': [self.socks_port],
-					'ControlPort': [self.control_port],
+					'SocksPort': str(self.socks_port),
+					'ControlPort': str(self.control_port),
+					# 'SocksPort': [self.socks_port],
+					# 'ControlPort': [self.control_port],
 					'HashedControlPassword': self.hashcode,
 					'CookieAuthentication': '1',
 					'DataDirectory': self.tor_path,
-					'ExitNodes': '{%s}' % self.exit_country_code
+					# 'ExitNodes': '{%s}' % self.exit_country_code
 				},
 				init_msg_handler=print_bootstrap_lines,
 				timeout=timeout
