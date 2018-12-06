@@ -3,6 +3,7 @@ import time
 import unittest
 import pprint
 import getpass
+import random
 
 
 import pycurl
@@ -13,7 +14,6 @@ from lxml import cssselect
 from sneak.Http import Session, HttpWorkerPool, default_curl
 from sneak.Tor  import Proxy
 from test_data  import test_settings
-
 
 def get_logstatus(html):
     html = lxml.html.fromstring(bytes(html, 'utf8'))
@@ -560,6 +560,249 @@ class TestHttpWorkerPool(unittest.TestCase):
             self.assertEqual(sessions[i], sess)
 
         p.terminate()
+
+
+
+from sneak.Tor import Proxy, ProxyChain
+
+class TestProxyChain(unittest.TestCase):
+
+    def test_run(self):
+        # Test Case 1: Avoid proxy collision
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+
+        proxy_chain = ProxyChain()
+        proxy_chain.run()
+
+        p.terminate()
+        proxy_chain.terminate()
+
+    def test_write_config(self):
+        proxy_chain = ProxyChain(num_proxy=10)
+        proxy_chain.run()
+        proxy_chain.write_config(proxychain_config='test_proxychains.config')
+
+        # Test Case 1: Check the number of proxies in config file is 
+        # the same as the number of living proxies
+        start_count_proxy = False
+        proxy_number = 0
+        config_file = open('test_proxychains.config', 'r')
+        for line in config_file.readlines():
+            if '[ProxyList]' in line:
+                start_count_proxy = True
+            elif start_count_proxy:
+                proxy_number +=1
+
+        proxy_chain.terminate()
+        self.assertEqual(proxy_number, len(proxy_chain.proxies))
+
+
+from sneak.Netool import Router, NetMap
+
+# 20180227 Y.D.: Test Router
+class TestRouter(unittest.TestCase):
+
+    def test_initial(self):
+
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+        router = Router(p)
+        for flag in router.known_flags:
+            if flag in ['Unnamed', 'Named', 'NoEdConsensus', 'BadExit']:
+                pass
+            else:
+                self.assertGreater(len(router.relay_types[flag]), 0)
+        p.terminate()
+
+    def test_list_circuits(self):
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+
+        router = Router(p)
+        router.list_circuits()
+
+        p.terminate()
+
+    def test_list_relays(self):
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+
+        router = Router(p)
+        router.list_relays()
+        p.terminate()
+
+    def test_get_relays_by_type(self):
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+
+        router = Router(p)
+        relay_table = router.get_relay_table()
+        relay_names = [
+            'Guard', 'Fast', 'HSDir', 'Exit', 'BadExit', 'Named', 
+            'NoEdConsensus', 'Valid', 'V2Dir', 'Stable', 'Unnamed', 'Running', 'Authority']
+
+        # Test Case 1: 
+        for name in relay_names:
+            relays = router.get_relays_by_type(name)
+            for relay in relays:
+                (relay_id, relay_val), = relay.items()
+                r = name in relay_val['flags']
+                self.assertTrue(r)
+        
+        not_exist_names = ['Gard', 'Fat', 'HSDr', 'Exist']
+
+        for name in not_exist_names:
+            relays = router.get_relays_by_type(name)
+            self.assertEqual(0, len(relays))
+
+        # Test Case 2: Select Exit nodes without Guards
+        relays = router.get_relays_by_type('Exit', excludes=['Guard'])
+        for relay in relays:
+            (relay_name, relay_info), = relay.items()
+            if 'Guard' in relay_info['flags']:
+                self.assertTrue(False)
+
+        # Test Case 3: Select Guards and exclude them simultaneously
+        relays = router.get_relays_by_type('Guard', excludes=['Guard'])
+        self.assertEqual(len(relays), 0)
+        p.terminate()
+
+    def test_sniff(self):
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+        r = Router(p)
+        r.sniff()
+        p.terminate()
+
+    # 20180307 Y.D.
+    def test_add_route(self):
+        p = Proxy()
+        p.run()
+        p.auth_controller()
+
+        r = Router(p)
+        num_origin_circuit = len(r.circuits)
+
+        # r.list_circuits()
+        # print('='*20)
+        # # Test Case 1:
+        # r.add_route()
+        # r.list_circuits()
+        # num_added_circuit = len(r.circuits)
+
+        # self.assertGreater(num_added_circuit, num_origin_circuit)
+
+        # Test Case 2: Build a custom circuit.
+        num_guards = len(r.relay_types['Guard'])
+        num_guard  = random.randint(0, num_guards-1)
+        num_fasts  = len(r.relay_types['Fast'])
+        num_fast0  = random.randint(0, num_fasts-1)
+        num_fast1  = random.randint(0, num_fasts-1)
+        guard = r.relay_types['Guard'][num_guard]
+        fast0 = r.relay_types['Fast'][num_fast0]
+        while num_fast0 == num_fast1:
+            num_fast1  = random.randint(0, num_fasts-1)
+        fast1 = r.relay_types['Fast'][num_fast1]
+        new_path = [guard, fast0, fast1]
+        r.add_route(path=new_path)
+        num_added_circuit = len(r.circuits)
+        self.assertGreater(num_added_circuit, num_origin_circuit)
+
+        # Test Case 3: Create a path which have three same nodes
+        num_fasts = len(r.relay_types['Fast'])
+        num_fast  = random.randint(0, num_fasts-1)
+        node = r.relay_types['Fast'][num_fast]
+        new_path = [node] * 3
+        num_circuits = len(r.circuits)
+        r.add_route(path=new_path)
+        new_num_circuits = len(r.circuits)
+
+        # Test Case 4: 
+        
+
+        p.terminate()
+
+class TestNetMap(unittest.TestCase):
+
+    def test_scan(self):
+        # Test Case 1: Usual domain
+        netmap = NetMap()
+        r = netmap.scan('www.google.com')
+        
+        self.assertTrue('www.google.com' in r['host'])
+        self.assertEqual(r['services'][0][0], '80/tcp')
+        self.assertEqual(r['services'][0][1], 'open')
+        self.assertEqual(r['services'][0][2], 'http')
+        self.assertEqual(r['services'][1][0], '443/tcp')
+        self.assertEqual(r['services'][1][1], 'open')
+        self.assertEqual(r['services'][1][2], 'https')
+
+        # Test Case 2: Ip address
+        r = netmap.scan('216.58.222.14')
+        self.assertEqual(r['host'], '216.58.222.14')
+        self.assertEqual(r['services'][0][0], '80/tcp')
+        self.assertEqual(r['services'][0][1], 'open')
+        self.assertEqual(r['services'][0][2], 'http')
+        self.assertEqual(r['services'][1][0], '443/tcp')
+        self.assertEqual(r['services'][1][1], 'open')
+        self.assertEqual(r['services'][1][2], 'https')
+
+        # Test Case 3: Onion site
+        r = netmap.scan('facebookcorewwwi.onion')
+        self.assertTrue('facebookcorewwwi.onion' in r['host'])
+        self.assertEqual(r['services'][0][0], '80/tcp')
+        self.assertEqual(r['services'][0][1], 'open')
+        self.assertEqual(r['services'][0][2], 'http')
+        self.assertEqual(r['services'][1][0], '443/tcp')
+        self.assertEqual(r['services'][1][1], 'open')
+        self.assertEqual(r['services'][1][2], 'https')
+
+        # Test Case 4: Stupid Ip addresses
+        netmap.scan('216.58.222.14.216.58.222.14')
+        netmap.scan('2165822214')
+        netmap.scan('2165.8222.14')
+        netmap.terminate()
+
+        # Test Case 5: If proxies are used already. Does netmap display error message?
+        p0 = Proxy(socks_port=9050, control_port=9051, tor_path='tor_0')
+        p1 = Proxy(socks_port=9150, control_port=9151, tor_path='tor_1')
+        p2 = Proxy(socks_port=9250, control_port=9251, tor_path='tor_2')
+
+        p0.run()
+        p1.run()
+        p2.run()
+        p0.auth_controller()
+        p1.auth_controller()
+        p2.auth_controller()
+
+        netmap = NetMap()
+
+        p0.terminate()
+        p1.terminate()
+        p2.terminate()
+
+
+
+import socks
+import socket
+
+# class TestSocket(unittest.TestCase):
+
+#     def test_socket(self):
+
+#         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#         socks.set_default_proxy(socks.SOCKS5, '127.0.0.1', 9050)
+#         socket.socket = socks.socksocket
+
+#     pass
+
 
 
 def main():
